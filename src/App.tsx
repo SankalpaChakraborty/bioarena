@@ -277,7 +277,7 @@ async function runDebateRound(q, roundNum, prevRounds, userInput, onStatus, prev
  for(const ag of AGENTS){
     onStatus(ag.id,"running",roundNum);
     // Wait between agents to stay under rate limit
-    await new Promise(r=>setTimeout(r,2000));
+    await new Promise(r=>setTimeout(r,7000));
     let msg=`**Problem:** ${q.title}\n\n${q.prompt}\n\n`;
     if(userInput) msg+=`**Researcher's additional input (incorporate this fully):** ${userInput}\n\n`;
     // Give agents context from a prior completed session when available
