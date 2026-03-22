@@ -1940,11 +1940,11 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     setMeta(prev=>prev?{...prev,submissionCount:updatedIters.length,resolved:true,finalScore}:prev);
 
     setUserInput("");setRunning(false);setLivePhase("done");
-  }catch(err:any){
-    console.error("Debate run failed:",err);
-    setLivePhase("error");
-    setRunning(false);
-  }
+  } catch (err: any) {
+      console.error("Debate run failed:", err);
+      setLivePhase("error");
+      setRunning(false);
+    }
 },[q,userInput,running,iters,onAgentStatus]);
 
   const activeIter=iters.length>0?[...iters].sort((a,b)=>b.ts-a.ts)[0]:null;
