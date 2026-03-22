@@ -240,7 +240,7 @@ const res = await fetch("https://bioarena-api.sankalpachakraborty91.workers.dev"
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    model: "mixtral-8x7b-32768",
+    model: "llama-3.1-8b-instant",
     max_tokens: 500,
     messages: [
       { role: "system", content: system },
