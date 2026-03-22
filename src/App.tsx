@@ -274,8 +274,9 @@ async function judgeRound(q, allRounds, prevConsensus){
 
 async function runDebateRound(q, roundNum, prevRounds, userInput, onStatus, prevConsensus){
   const agents=[];
-  for(const ag of AGENTS){
-    onStatus(ag.id,"running",roundNum);
+ for(const ag of AGENTS){
+  onStatus(ag.id,"running",roundNum);
+  await new Promise(r=>setTimeout(r,800));
     let msg=`**Problem:** ${q.title}\n\n${q.prompt}\n\n`;
     if(userInput) msg+=`**Researcher's additional input (incorporate this fully):** ${userInput}\n\n`;
     // Give agents context from a prior completed session when available
