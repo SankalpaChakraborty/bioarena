@@ -991,8 +991,8 @@ function Category({catId,goHome,goQuestion}){
 /* ═══════ LIVE PANEL ═══════ */
 function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
   const sc=score===null?"#354d72":score>=80?"#2aff80":score>=60?"#4ade80":score>=40?"#ffc34d":"#f97316";
-  const pl={"cooling down…":"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",
-  const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
+const pl={"cooling down…":"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
+const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
 
   return(
     <div style={{background:"#020617",border:"1px solid #00e5ff",borderRadius:4,padding:16,marginBottom:18,position:"relative"}}>
