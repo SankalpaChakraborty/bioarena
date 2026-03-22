@@ -1079,7 +1079,7 @@ const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
           {(phase==="judging"||phase==="consensus"||phase==="plain"||phase==="conclusion"||phase==="code")&&(
             <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",background:"rgba(42,255,128,.04)",border:"1px solid rgba(42,255,128,.15)",borderRadius:3,marginTop:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#2aff80",animation:"blink 1s infinite",flexShrink:0}}/>
-              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80"}}>{pl}</div>
+              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80"}}>{pl[phase]||phase}</div>
             </div>
           )}
         </div>
