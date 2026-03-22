@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 const _fl = document.createElement("link");
 _fl.rel = "stylesheet";
@@ -477,7 +477,23 @@ function CodeMd({text}){
     })}</div>
   );
 }
-
+class ErrorBoundary extends React.Component<{children:any},{crashed:boolean,msg:string}>{
+  constructor(p:any){super(p);this.state={crashed:false,msg:""};}
+  static getDerivedStateFromError(e:any){return{crashed:true,msg:e?.message||"Unknown error"};}
+  render(){
+    if(this.state.crashed) return(
+      <div style={{padding:40,textAlign:"center",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif"}}>
+        <div style={{fontSize:32,marginBottom:16}}>⚠️</div>
+        <div style={{fontSize:16,marginBottom:8}}>Something went wrong</div>
+        <div style={{fontSize:12,color:"#354d72",marginBottom:24}}>{this.state.msg}</div>
+        <button onClick={()=>window.location.reload()} style={{padding:"10px 24px",borderRadius:4,border:"1px solid #ff5c5c",background:"transparent",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif",fontSize:12,cursor:"pointer"}}>
+          Reload page
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 /* ═══════ NAV ═══════ */
 function Nav({page,goHome,goCommunity,goLB,customAPI}){
   const mob=useIsMobile();
@@ -991,7 +1007,7 @@ function Category({catId,goHome,goQuestion}){
 /* ═══════ LIVE PANEL ═══════ */
 function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
   const sc=score===null?"#354d72":score>=80?"#2aff80":score>=60?"#4ade80":score>=40?"#ffc34d":"#f97316";
-const pl={"cooling down…":"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
+if(!round && !phase) return null;"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
 const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
 
   return(
@@ -1165,9 +1181,10 @@ function Question({qid,goHome,goCategory}){
   },[qid]);
 
   const run=useCallback(async()=>{
-    if(running) return;
-    setRunning(true);
-    const ui=userInput.trim();
+  if(running) return;
+  setRunning(true);
+  const ui=userInput.trim();
+  try{
 
     const sortedIters=[...iters].sort((a,b)=>b.ts-a.ts);
     const prevConsensus=sortedIters.length>0 ? sortedIters[0].consensus||"" : "";
@@ -1227,7 +1244,12 @@ function Question({qid,goHome,goCategory}){
     setUserInput(""); // clear input after run so user can type the next question
     setRunning(false);
     setLivePhase("done");
-  },[q,userInput,running,iters,onAgentStatus]);
+  }catch(err:any){
+    console.error("Debate run failed:",err);
+    setLivePhase("error");
+    setRunning(false);
+  }
+},[q,userInput,running,iters,onAgentStatus]);
 
   const activeIter=iters.length>0?[...iters].sort((a,b)=>b.ts-a.ts)[0]:null;
   const estMin=Math.max(8,Math.min(25,Math.round(q.prompt.length/800)));
@@ -1917,7 +1939,12 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     setMeta(prev=>prev?{...prev,submissionCount:updatedIters.length,resolved:true,finalScore}:prev);
 
     setUserInput("");setRunning(false);setLivePhase("done");
-  },[q,cqTitle,userInput,running,iters,onAgentStatus]);
+  }catch(err:any){
+    console.error("Debate run failed:",err);
+    setLivePhase("error");
+    setRunning(false);
+  }
+},[q,userInput,running,iters,onAgentStatus]);
 
   const activeIter=iters.length>0?[...iters].sort((a,b)=>b.ts-a.ts)[0]:null;
 
@@ -2135,6 +2162,7 @@ export default function BioArenaApp(){
   const goQuestion=useCallback(id=>{setQid(id);setPage("q");window.scrollTo(0,0);},[]);
 
   return(
+    <ErrorBoundary>
     <div className="ba-root">
       <Nav page={page} goHome={goHome} goCommunity={goCommunity} goLB={goLB} customAPI={customAPI}/>
       {page==="home"&&<Home goCategory={goCategory} goQuestion={goQuestion} goCommunity={goCommunity} goCommunityQ={goCommunityQ} customAPI={customAPI} applyCustomAPI={applyCustomAPI}/>}
@@ -2144,5 +2172,6 @@ export default function BioArenaApp(){
       {page==="cq"&&<CommunityQuestion cqid={cqid} cqTitle={cqTitle} goHome={goHome} goCommunity={goCommunity}/>}
       {page==="lb"&&<Leaderboard goHome={goHome}/>}
     </div>
+    </ErrorBoundary>
   );
 }
