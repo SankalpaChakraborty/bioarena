@@ -175,7 +175,7 @@ const AGENTS = [
 
 /* ═══════ CONSTANTS ═══════ */
 const SK = "bioarena:iters";
-const MAX_ROUNDS = 3;   // up to 5 rounds to reach best resolution
+const MAX_ROUNDS = 3;   // up to 3 rounds to reach best resolution
 const MIN_ROUNDS = 2;   // always at least 2 rounds regardless of early convergence
 const CONV = 65;        // threshold for "resolved" — raised so agents push harder
 
