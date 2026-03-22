@@ -1161,6 +1161,11 @@ function Question({qid,goHome,goCategory}){
 
     while(round<MAX_ROUNDS){
       round++;
+      // Cooldown between rounds to reset the token-per-minute bucket
+      if(round>1){
+        setLivePhase("cooling down…");
+        await new Promise(r=>setTimeout(r,30000));
+      }
       setLiveRound(round);
       setLivePhase("debating");
       const roundAgents=await runDebateRound(q,round,allRounds,ui,onAgentStatus,prevConsensus);
@@ -1847,9 +1852,14 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
 
     while(round<MAX_ROUNDS){
       round++;
+      // Cooldown between rounds to reset the token-per-minute bucket
+      if(round>1){
+        setLivePhase("cooling down…");
+        await new Promise(r=>setTimeout(r,30000));
+      }
       setLiveRound(round);
       setLivePhase("debating");
-      const roundAgents=await runDebateRound(enrichedQ,round,allRounds,ui,onAgentStatus,prevConsensus);
+      const roundAgents=await runDebateRound(q,round,allRounds,ui,onAgentStatus,prevConsensus);
       setLivePhase("judging");
       const judgeResult=await judgeRound(enrichedQ,[...allRounds,{agents:roundAgents}],prevConsensus);
       setLiveScore(judgeResult.score);
