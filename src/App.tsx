@@ -324,7 +324,19 @@ async function buildFinalConsensus(q, allRounds, userInput, resolved, prevConsen
   const priorNote = prevConsensus ? `\n\nPRIOR SESSION CONSENSUS (this session must supersede it with improvements):\n${prevConsensus.slice(0,350)}` : "";
   const note=resolved?"":"\n\nNote: Max rounds reached without full convergence. Synthesize the best possible current consensus. Clearly label contested points. Always produce actionable output.";
   const sys=`You are a senior scientist writing a research resolution after a multi-round expert debate with ${AGENTS.length} agents. Write: (1) **Final Consensus** — what all experts agreed on (be specific — cite tools, numbers, mechanisms), (2) **Resolved Tensions** — how disagreements were settled, (3) **Still Open** — what genuinely remains unknown, (4) **Recommended Action Plan** — 5 concrete next steps with specific tool names, (5) **Success Metrics** — measurable targets.${note} Use **bold headers**. 450 words max.`;
-  try{return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);}
+  try{
+    let attempts=0;
+    while(attempts<3){
+      try{
+        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
+      }catch(e:any){
+        attempts++;
+        if(e.message?.includes("429")&&attempts<3){
+          await new Promise(r=>setTimeout(r,15000*attempts));
+        }else throw e;
+      }
+    }
+  }
   catch{return "Resolution generation failed. See debate rounds above.";}
 }
 
@@ -342,8 +354,20 @@ Write a friendly numbered step-by-step action plan. STRICT RULES:
 - Then: "**What the ${AGENTS.length} AI agents agreed on:**" — 3-4 plain-English bullet points of the main conclusions
 - Finally: "**⚠️ What this debate CANNOT fully solve for you yet:**" — be specific and honest
 - Max 8 steps.${resolved?"":" Note: debate reached max rounds without full convergence — frame as best current guidance and be honest about remaining uncertainty."}${priorNote}`;
-  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher input: ${userInput||"none"}\n\nExpert consensus (${AGENTS.length} agents, ${resolved?"resolved":"best effort"}):\n${finalConsensus.slice(0,1200)}\n\nWrite the plain-English guide.`);}
-  catch{return "Plain-language summary could not be generated.";}
+  try{
+    let attempts=0;
+    while(attempts<3){
+      try{
+        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
+      }catch(e:any){
+        attempts++;
+        if(e.message?.includes("429")&&attempts<3){
+          await new Promise(r=>setTimeout(r,15000*attempts));
+        }else throw e;
+      }
+    }
+  }
+  catch{return "Resolution generation failed. See debate rounds above.";}
 }
 
 async function buildConclusion(q, allRounds, finalConsensus, userInput, resolved){
@@ -424,8 +448,20 @@ Structure your response EXACTLY as follows:
 - **Still beyond current AI capability:** [what remains genuinely unsolved even with more code and more data]
 
 Keep the code simple. Prioritize clarity over complexity. It must run in under 5 minutes on a laptop.`;
-  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher context: ${userInput||"none"}\n\nExpert consensus:\n${finalConsensus.slice(0,900)}\n\nGenerate practical starter code.`);}
-  catch{return "Code generation failed. Please try again.";}
+  try{
+    let attempts=0;
+    while(attempts<3){
+      try{
+        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
+      }catch(e:any){
+        attempts++;
+        if(e.message?.includes("429")&&attempts<3){
+          await new Promise(r=>setTimeout(r,15000*attempts));
+        }else throw e;
+      }
+    }
+  }
+  catch{return "Resolution generation failed. See debate rounds above.";}
 }
 
 /* ═══════ RESPONSIVE HOOK ═══════ */
@@ -1224,12 +1260,16 @@ function Question({qid,goHome,goCategory}){
     }
     const finalScore=allRounds[allRounds.length-1]?.judge?.score??0;
 
+    await new Promise(r=>setTimeout(r,8000));
     setLivePhase("consensus");
     const finalConsensus=await buildFinalConsensus(q,allRounds,ui,true,prevConsensus);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("plain");
     const plainSummary=await buildPlainSummary(q,finalConsensus,ui,true,prevConsensus);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("conclusion");
     const conclusion=await buildConclusion(q,allRounds,finalConsensus,ui,true);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("code");
     const code=await generateCode(q,finalConsensus,ui);
 
@@ -1912,14 +1952,18 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     }
     const finalScore=allRounds[allRounds.length-1]?.judge?.score??0;
 
+    await new Promise(r=>setTimeout(r,8000));
     setLivePhase("consensus");
-    const finalConsensus=await buildFinalConsensus(enrichedQ,allRounds,ui,true,prevConsensus);
+    const finalConsensus=await buildFinalConsensus(q,allRounds,ui,true,prevConsensus);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("plain");
-    const plainSummary=await buildPlainSummary(enrichedQ,finalConsensus,ui,true,prevConsensus);
+    const plainSummary=await buildPlainSummary(q,finalConsensus,ui,true,prevConsensus);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("conclusion");
-    const conclusion=await buildConclusion(enrichedQ,allRounds,finalConsensus,ui,true);
+    const conclusion=await buildConclusion(q,allRounds,finalConsensus,ui,true);
+    await new Promise(r=>setTimeout(r,5000));
     setLivePhase("code");
-    const code=await generateCode(enrichedQ,finalConsensus,ui);
+    const code=await generateCode(q,finalConsensus,ui);
 
     const iteration={
       id:Date.now().toString(),ts:Date.now(),
