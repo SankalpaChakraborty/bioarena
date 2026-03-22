@@ -291,10 +291,27 @@ async function runDebateRound(q, roundNum, prevRounds, userInput, onStatus, prev
       msg+=`ROUND 1 — State your most specific, concrete initial position from your unique lens: **${ag.lens}**. Cite specific tools, numbers, protocols, or mechanisms. Do not be vague. 270 words max.`;
     }
     try{
-      const resp=await callClaude(ag.sys,msg);
+      let resp="";
+      let attempts=0;
+      while(attempts<4){
+        try{
+          resp=await callClaude(ag.sys,msg);
+          break;
+        }catch(e:any){
+          attempts++;
+          const is429=e.message&&(e.message.includes("429")||e.message.includes("rate"));
+          if(is429&&attempts<4){
+            const wait=15000*attempts;
+            onStatus(ag.id,`retrying ${attempts}/3…`,roundNum);
+            await new Promise(r=>setTimeout(r,wait));
+          }else{
+            throw e;
+          }
+        }
+      }
       agents.push({aid:ag.id,resp,score:55+Math.floor(Math.random()*25)});
       onStatus(ag.id,"done",roundNum);
-    }catch(e){
+    }catch(e:any){
       agents.push({aid:ag.id,resp:`Analysis unavailable: ${e.message}`,score:0});
       onStatus(ag.id,"error",roundNum);
     }
