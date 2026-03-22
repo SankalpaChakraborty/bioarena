@@ -1007,7 +1007,8 @@ function Category({catId,goHome,goQuestion}){
 /* ═══════ LIVE PANEL ═══════ */
 function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
   const sc=score===null?"#354d72":score>=80?"#2aff80":score>=60?"#4ade80":score>=40?"#ffc34d":"#f97316";
-if(!round && !phase) return null;"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
+if(!round && !phase) return null;
+const pl={"cooling down…":"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
 const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
 
   return(
