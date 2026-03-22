@@ -175,7 +175,7 @@ const AGENTS = [
 
 /* ═══════ CONSTANTS ═══════ */
 const SK = "bioarena:iters";
-const MAX_ROUNDS = 5;   // up to 5 rounds to reach best resolution
+const MAX_ROUNDS = 3;   // up to 5 rounds to reach best resolution
 const MIN_ROUNDS = 2;   // always at least 2 rounds regardless of early convergence
 const CONV = 65;        // threshold for "resolved" — raised so agents push harder
 
@@ -240,7 +240,7 @@ const res = await fetch("https://bioarena-api.sankalpachakraborty91.workers.dev"
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    model: "llama-3.1-8b-instant",
+    model: "mixtral-8x7b-32768",
     max_tokens: 500,
     messages: [
       { role: "system", content: system },
