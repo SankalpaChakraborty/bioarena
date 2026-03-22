@@ -235,14 +235,22 @@ async function callClaude(system, userMsg) {
     }
   }
 
-  // ── Default BioArena path (Claude via artifact API) ──
-  const res = await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:950,system,messages:[{role:"user",content:userMsg}]}),
+ // ── Default path — via Netlify proxy (keeps key safe on server) ──
+  const res = await fetch("/api/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 950,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userMsg }
+      ]
+    }),
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
   const d = await res.json();
-  return d.content?.map(c=>c.text||"").join("")||"No response.";
+  return d.choices?.[0]?.message?.content || "No response.";
 }
 async function loadIters(qid){try{const r=await window.storage.get(`${SK}:${qid}`,true);return r?JSON.parse(r.value):[];}catch{return[];}}
 async function saveIters(qid,iters){try{await window.storage.set(`${SK}:${qid}`,JSON.stringify(iters),true);}catch{}}
