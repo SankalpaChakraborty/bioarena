@@ -231,15 +231,28 @@ CRITICAL: Every protocol you propose must follow this EXACT format and level of 
 Bold key claims. 260 words max. End with one concrete first step a lab can do tomorrow.`},
 
   {id:"bioinformatician",name:"Bioinformatician",color:"#06b6d4",lens:"Pipeline & Code Design",
-   sys:`You are Dr. Alex Kumar, a computational biologist specializing in bioinformatics pipeline design. Your role: PIPELINE & CODE DESIGN.
+   sys:`You are Dr. Alex Kumar, a computational biologist. Your role: PIPELINE & CODE DESIGN.
+
+CRITICAL RULE: Every code snippet you propose MUST use ONLY these pip-installable libraries:
+pandas, numpy, scipy, matplotlib, seaborn, scikit-learn, statsmodels, networkx, biopython
+DO NOT suggest: STAR, featureCounts, FastQC, samtools, rpy2, DESeq2-R, scanpy, anndata, cobra, pydeseq2
+— these require complex system installs that fail in cloud environments.
+Instead use Python-native equivalents: scipy.stats for DEG testing, sklearn for clustering/PCA, etc.
+
 For every biology problem you MUST:
-1. Propose a specific analysis pipeline with named tools and versions (e.g. STAR 2.7.10, DESeq2 1.40, scanpy 1.9)
-2. Specify input/output formats (FASTQ → BAM → count matrix → results)
-3. Identify the most common computational errors (e.g. wrong normalization, batch effects, multiple testing)
-4. Suggest the correct statistical approach with parameters
-5. Note which steps require HPC vs can run on a laptop
-Structure: 📊 PIPELINE → 💻 KEY TOOLS → ⚙️ PARAMETERS → 🐛 COMMON ERRORS
-**Bold** key claims. 260 words max. End with the single most important parameter to get right.`},
+1. Propose a RUNNABLE Python pipeline using ONLY the allowed libraries above
+2. Show exact pip install commands (one line: pip install pandas numpy scipy matplotlib scikit-learn)
+3. Include a minimal working code snippet (15-25 lines) with synthetic data that runs immediately
+4. Cite the key paper for your statistical method (PMID format: Love et al. 2014, PMID:25516281)
+5. Identify the single most important parameter to tune for real data
+
+Structure:
+📊 PIPELINE: [tool names → tool names → output]
+💻 RUNNABLE CODE SNIPPET: [15-25 lines, synthetic data, runs with pip install only]
+📚 KEY CITATION: [Author et al. Year, PMID:XXXXXXX — why this method]
+⚙️ CRITICAL PARAMETER: [the one thing that changes results most]
+
+**Bold** key claims. 260 words max.`},
 
   {id:"statistician",name:"Statistician",color:"#f59e0b",lens:"Study Design & Power Analysis",
    sys:`You are Prof. Michael Torres, a biostatistician specializing in experimental design for biology. Your role: STUDY DESIGN & STATISTICAL RIGOR.
@@ -297,15 +310,22 @@ Structure: ❌ MOST LIKELY FAILURE → 📚 PRECEDENT FAILURE → 🚫 CHALLENGE
 Be specific, combative, and intellectually honest. **Bold** key challenges. 260 words max. End with the one question the other agents haven't answered that they must answer before proceeding.`},
 
   {id:"synthesizer",name:"Synthesizer",color:"#2aff80",lens:"Cross-Agent Synthesis & Consensus",
-   sys:`You are the Synthesizer — the meta-agent whose job is to find the optimal path forward by integrating all agent perspectives.
+   sys:`You are the Synthesizer — integrating all agent perspectives into a concrete, actionable consensus.
 For every biology problem you MUST:
-1. Identify which 2-3 agent proposals are most compatible and can be combined
-2. Resolve the most important disagreement between agents with a specific verdict
-3. Propose the minimum viable experiment that tests the core hypothesis
-4. Identify what would change your recommendation (the key uncertainties)
-5. Specify the 3-step action plan that integrates the best elements from all agents
-Structure: 🤝 COMPATIBLE APPROACHES → ⚖️ VERDICT → 🧪 MVP EXPERIMENT → ❓ KEY UNCERTAINTIES → 📋 ACTION PLAN
-**Bold** verdicts. 260 words max. End with the single highest-impact action that moves the field forward.`},
+1. Identify which 2-3 agent proposals are most compatible and state exactly why
+2. Give a specific verdict on the most important disagreement (name the agents, pick a winner with reason)
+3. State the 3-step action plan integrating the best elements — each step must be concrete and actionable
+4. List 2-3 literature references supporting your consensus approach (Author et al. Year, PMID:XXXXXXX)
+5. State what pip-installable Python code would implement the computational parts (name exact functions: scipy.stats.ttest_ind, sklearn.decomposition.PCA, etc.)
+
+Structure:
+🤝 COMPATIBLE APPROACHES: [which agents agree and why]
+⚖️ VERDICT: [pick winner on key disagreement + reason]
+📋 ACTION PLAN: [3 numbered concrete steps]
+📚 KEY CITATIONS: [2-3 PMIDs supporting the approach]
+💻 CODE APPROACH: [exact Python functions to use — pip-installable only]
+
+**Bold** verdicts. 260 words max. End with the single highest-impact action.`},
 ];
 
 /* ═══════ CONSTANTS ═══════ */
@@ -2458,109 +2478,266 @@ function ItersList({iters,onDelete,q,onUpdate}){
 
 /* ═══════ PROTOCOL PANEL ═══════ */
 function ProtocolPanel({it,q,allIters,onUpdate}:any){
-  const [generating,setGenerating]=useState(false);
-  const [error,setError]=useState("");
+  const [listLoading,setListLoading]=useState(false);
+  const [listError,setListError]=useState("");
+  const [generatingIdx,setGeneratingIdx]=useState<number|null>(null);
+  const [openIdx,setOpenIdx]=useState<number|null>(null);
 
-  const hasFailed=it.protocols&&(it.protocols.startsWith("Protocol generation failed")||it.protocols.includes("could not be generated"));
+  // protocols field shape:
+  // "" → not started
+  // {list:[{title,why,time,cost}], generated:{0:"...",2:"..."}} → working state
 
-  const gen=async()=>{
-    if(generating) return;
-    setGenerating(true);setError("");
-    const sys=`You are Dr. Sarah Chen, a senior experimental biologist. The AI agents just completed a debate on a biology problem and proposed several experiments and analyses. Your job: write DETAILED, LITERATURE-BACKED protocols for the KEY experiments they suggested that cannot be fully handled by code alone.
+  const raw=it.protocols||"";
+  const isOldString=typeof raw==="string"&&raw.length>0&&!raw.startsWith("{");
+  const state:any=(typeof raw==="string"&&raw.startsWith("{"))?JSON.parse(raw):{list:null,generated:{}};
+  const list:any[]=state.list||[];
+  const generated:Record<string,string>=state.generated||{};
 
-For EACH protocol write EXACTLY this structure:
-
----
-### Protocol N: [Experiment Name]
-**Why this experiment** — [1 sentence: what biological question it answers]
-**Reference** — [Author et al., Journal Year, PMID:XXXXXXX — use real plausible PMIDs]
-**Estimated time** — [e.g. 3 days | 2 weeks]
-**Estimated cost** — [e.g. ~$200 reagents + sequencing if applicable]
-
-**Materials you need to purchase:**
-| Reagent/Kit | Supplier | Cat# | ~Cost |
-|---|---|---|---|
-| [reagent] | [ThermoFisher/Sigma/NEB/etc] | [catalog#] | [$XX] |
-
-**Step-by-step protocol:**
-1. [Exact step — include volume, concentration, time, temperature]
-2. [Continue with this level of detail throughout]
-3. ...
-
-**Critical controls:**
-- Positive: [specific reagent/condition] → expected result
-- Negative: [specific reagent/condition] → expected result
-- Technical: [e.g. no-RT control for RT-qPCR]
-
-**Common failure points:**
-1. [Specific pitfall + how to avoid]
-2. [Specific pitfall + how to avoid]
-
-**How to know it worked:**
-[Specific observable/measurable success criterion]
----
-
-Write 2-4 protocols covering the most important experimental validations suggested by the debate. Focus on wet-lab experiments and computational analyses that go beyond what a Python script can do. Skip anything that is purely code-solvable.`;
-
-    const msg=`Biology problem: ${q.title}
-Expert consensus from debate:
-${(it.consensus||"").slice(0,800)}
-
-Action plan from debate:
-${(it.plainSummary||"").slice(0,600)}
-
-Write the detailed lab protocols now. Be specific with catalog numbers, concentrations, and timings.`;
-
-    try{
-      const result=await callWithRetry(sys,msg,1000,"ProtocolPanel");
-      const updated=allIters.map((iter:any)=>iter.id===it.id?{...iter,protocols:result}:iter);
-      onUpdate(updated);
-    }catch(e:any){
-      setError(`Protocol generation failed: ${e.message}. Please retry.`);
-    }finally{setGenerating(false);}
+  const save=(newState:any)=>{
+    const updated=allIters.map((iter:any)=>iter.id===it.id?{...iter,protocols:JSON.stringify(newState)}:iter);
+    onUpdate(updated);
   };
 
-  // Auto-generate if not done yet
+  // Phase 1: generate the list of protocol titles
+  const genList=async()=>{
+    setListLoading(true);setListError("");
+    const sys=`You are a senior experimental biologist. Based on a biology debate, identify the 3-5 most important experimental protocols needed.
+
+Return ONLY a JSON array. No markdown. No explanation. Start with [ and end with ].
+Example: [{"title":"RT-qPCR validation of DEGs","why":"Confirm RNA-seq hits at transcript level","time":"2 days","cost":"~$150"},{"title":"Western blot for protein expression","why":"Verify protein-level changes for top 3 candidates","time":"3 days","cost":"~$200"}]
+
+Rules:
+- 3 to 5 protocols maximum
+- Focus on wet-lab experiments and analyses that code cannot do
+- Skip anything purely computational
+- title: short name (5-8 words)
+- why: one sentence explaining what it answers
+- time: realistic estimate (e.g. "2 days", "1 week")
+- cost: approximate reagent cost (e.g. "~$150", "~$800 + sequencing")`;
+
+    const msg=`Biology problem: ${q.title}
+Expert consensus: ${(it.consensus||"").slice(0,600)}
+Action plan: ${(it.plainSummary||"").slice(0,400)}
+
+Return a JSON array of 3-5 protocol objects. Start with [`;
+
+    try{
+      const raw2=await callWithRetry(sys,msg,400,"protocolList");
+      const start=raw2.indexOf("["); const end=raw2.lastIndexOf("]");
+      if(start===-1||end===-1) throw new Error("No JSON array found");
+      const parsed=JSON.parse(raw2.slice(start,end+1));
+      if(!Array.isArray(parsed)||parsed.length===0) throw new Error("Empty list returned");
+      save({list:parsed,generated:{}});
+    }catch(e:any){
+      setListError(`Could not generate protocol list: ${e.message}`);
+    }finally{setListLoading(false);}
+  };
+
+  // Phase 2: generate one full protocol by index
+  const genProtocol=async(idx:number,proto:any)=>{
+    if(generatingIdx!==null) return;
+    setGeneratingIdx(idx);
+    const sys=`You are Dr. Sarah Chen, a senior experimental biologist with 15 years bench experience.
+
+Write ONE complete, detailed, literature-backed protocol. Use EXACTLY this structure with these headers:
+
+**Why this experiment**
+[1 sentence — what biological question it answers and why it cannot be done computationally]
+
+**Reference**
+[Author et al., Full Journal Name Year; PMID:XXXXXXX — cite a real, plausible paper]
+
+**Time required:** [day-by-day breakdown, e.g. "Day 1: RNA extraction (3h), Day 2: RT-PCR (4h), Day 3: analysis (2h)"]
+**Estimated cost:** [itemised, e.g. "RNA extraction kit $80 + primers $40 + qPCR reagents $120 = ~$240"]
+
+**Materials to purchase**
+| Reagent/Kit | Supplier | Catalog # | Approx. cost |
+|---|---|---|---|
+| [exact reagent name] | [ThermoFisher / Sigma / NEB / Qiagen / etc] | [real cat#] | [$XX] |
+[list ALL reagents needed — minimum 4 rows]
+
+**Equipment needed**
+[List equipment: centrifuge, thermocycler, gel system, etc.]
+
+**Step-by-step protocol**
+1. [Exact step with volume, concentration, temperature, duration — e.g. "Lyse 1×10⁶ cells in 500 µL TRIzol (ThermoFisher 15596026), vortex 30s, incubate 5 min RT"]
+2. [Continue — every step must have specific numbers]
+[minimum 8 steps]
+
+**Critical controls**
+- Positive control: [exact reagent/sample] → expected result
+- Negative control: [exact reagent/sample] → expected result  
+- Technical control: [e.g. no-template control, no-RT control] → expected result
+
+**Common failure points**
+1. [Specific failure mode + exact prevention: e.g. "RNA degradation — always work on ice, use RNase-free tubes (Eppendorf 0030121589)"]
+2. [Another pitfall + prevention]
+3. [Third pitfall + prevention]
+
+**How to know it worked**
+[Specific quantitative success criterion — e.g. "RIN score ≥7, A260/280 ratio 1.8–2.1, expected band size 350 bp on gel"]
+
+**Troubleshooting**
+| Problem | Likely cause | Solution |
+|---|---|---|
+| [problem] | [cause] | [fix] |
+[2-3 rows]`;
+
+    const msg=`Biology problem: ${q.title}
+Protocol to write: ${proto.title}
+Why needed: ${proto.why}
+Consensus context: ${(it.consensus||"").slice(0,400)}
+
+Write the complete detailed protocol now. Include every reagent with catalog numbers. Be specific with volumes and timings.`;
+
+    try{
+      const result=await callWithRetry(sys,msg,1000,"protocolDetail");
+      const newGenerated={...generated,[String(idx)]:result};
+      save({list,generated:newGenerated});
+      setOpenIdx(idx);
+    }catch(e:any){
+      const newGenerated={...generated,[String(idx)]:`Generation failed: ${e.message}. Click Generate to retry.`};
+      save({list,generated:newGenerated});
+    }finally{setGeneratingIdx(null);}
+  };
+
+  // Auto-generate list on first open if not done
   useEffect(()=>{
-    if(!it.protocols&&!hasFailed&&!generating) gen();
+    if(!it.protocols&&!listLoading&&list.length===0) genList();
   },[]);
 
+  const TEAL="rgba(42,255,128,";
+
   return(
-    <div style={{background:"rgba(42,255,128,.02)",border:"1px solid rgba(42,255,128,.15)",borderRadius:4,padding:"18px 20px",position:"relative"}}>
-      <div style={{position:"absolute",top:-8,left:14,background:"#07101f",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>🧫 LAB PROTOCOLS — LITERATURE-BACKED</div>
+    <div style={{background:`${TEAL}.02)`,border:`1px solid ${TEAL}.15)`,borderRadius:4,padding:"18px 20px",position:"relative"}}>
+      <div style={{position:"absolute",top:-8,left:14,background:"#07101f",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>🧫 LAB PROTOCOLS</div>
 
-      {generating&&(
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"40px 0",gap:12}}>
-          <span style={{width:22,height:22,borderRadius:"50%",border:"3px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>
-          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11,color:"#2aff80"}}>Generating detailed lab protocols…</div>
-          <div style={{fontSize:10,color:"#354d72",textAlign:"center",maxWidth:400}}>Dr. Sarah Chen is writing step-by-step protocols with reagent catalog numbers, controls, and literature references</div>
+      {/* Loading list */}
+      {listLoading&&(
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 0",gap:10}}>
+          <span style={{width:20,height:20,borderRadius:"50%",border:"3px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>
+          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11,color:"#2aff80"}}>Identifying required protocols…</div>
+          <div style={{fontSize:10,color:"#354d72"}}>Analysing debate to determine which experiments are needed</div>
         </div>
       )}
 
-      {error&&!generating&&(
-        <div style={{background:"rgba(255,92,92,.06)",border:"1px solid rgba(255,92,92,.2)",borderRadius:4,padding:"12px 16px",marginBottom:14}}>
-          <div style={{fontSize:11,color:"#fca5a5",marginBottom:10}}>{error}</div>
-          <button onClick={gen} style={{padding:"7px 18px",borderRadius:3,border:"1px solid rgba(42,255,128,.4)",background:"rgba(42,255,128,.08)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,cursor:"pointer"}}>
-            ⚡ Retry Protocol Generation
+      {/* Error loading list */}
+      {listError&&!listLoading&&(
+        <div style={{background:"rgba(255,92,92,.06)",border:"1px solid rgba(255,92,92,.2)",borderRadius:4,padding:"12px 16px",marginBottom:12}}>
+          <div style={{fontSize:11,color:"#fca5a5",marginBottom:10}}>{listError}</div>
+          <button onClick={genList} style={{padding:"6px 16px",borderRadius:3,border:`1px solid ${TEAL}.4)`,background:`${TEAL}.08)`,color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,cursor:"pointer"}}>
+            ↺ Retry
           </button>
         </div>
       )}
 
-      {it.protocols&&!hasFailed&&!generating&&(
-        <div style={{fontSize:12,color:"#b4c8e8",lineHeight:1.9}}>
-          <Md text={it.protocols}/>
-          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid #182640",fontSize:10,color:"#354d72",lineHeight:1.7}}>
-            ⚠️ Always verify protocols against the cited primary literature before running in your lab. Catalog numbers and prices may vary by region and change over time. Consult your institution's biosafety guidelines before beginning any new protocol.
-          </div>
-        </div>
-      )}
-
-      {(hasFailed||(!it.protocols&&!generating&&!error))&&(
+      {/* Not started */}
+      {!it.protocols&&!listLoading&&!listError&&(
         <div style={{textAlign:"center",padding:"28px 0"}}>
-          <div style={{fontSize:11,color:"#354d72",marginBottom:14}}>Protocols not yet generated for this session.</div>
-          <button onClick={gen} style={{padding:"10px 28px",borderRadius:4,border:"1px solid rgba(42,255,128,.5)",background:"rgba(42,255,128,.1)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:11,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
-            🧫 Generate Protocols
+          <div style={{fontSize:11,color:"#354d72",marginBottom:14}}>Protocols not yet identified for this session.</div>
+          <button onClick={genList} style={{padding:"10px 28px",borderRadius:4,border:`1px solid ${TEAL}.5)`,background:`${TEAL}.1)`,color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:11,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
+            🧫 Identify Required Protocols
           </button>
+        </div>
+      )}
+
+      {/* Old string format — migrate */}
+      {isOldString&&(
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:10,lineHeight:1.6}}>
+            This session has protocols in the old format. Click below to regenerate as individual expandable protocols.
+          </div>
+          <button onClick={genList} style={{padding:"7px 18px",borderRadius:3,border:`1px solid ${TEAL}.4)`,background:`${TEAL}.08)`,color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,cursor:"pointer"}}>
+            ↺ Regenerate Protocol List
+          </button>
+        </div>
+      )}
+
+      {/* Protocol list */}
+      {list.length>0&&!listLoading&&(
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:4,lineHeight:1.6}}>
+            {list.length} protocols identified. Click <b style={{color:"#2aff80"}}>Generate</b> to produce the full step-by-step protocol for any experiment. Each protocol takes ~20 seconds.
+          </div>
+
+          {list.map((proto:any,idx:number)=>{
+            const isGenerated=!!generated[String(idx)];
+            const isFailed=isGenerated&&generated[String(idx)].startsWith("Generation failed");
+            const isOpen=openIdx===idx;
+            const isGenerating=generatingIdx===idx;
+
+            return(
+              <div key={idx} style={{border:`1px solid ${isGenerated&&!isFailed?TEAL+".25)":"#182640"}`,borderRadius:4,overflow:"hidden"}}>
+
+                {/* Header row */}
+                <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:isGenerated&&!isFailed?`${TEAL}.04)`:"#0c1a30",cursor:isGenerated?"pointer":"default"}}
+                  onClick={()=>{if(isGenerated&&!isFailed) setOpenIdx(isOpen?null:idx);}}>
+
+                  {/* Status dot */}
+                  <div style={{width:10,height:10,borderRadius:"50%",flexShrink:0,
+                    background:isGenerating?"transparent":isFailed?"#ff5c5c":isGenerated?"#2aff80":"#354d72",
+                    border:isGenerating?"2px solid #2aff80":"none",
+                    animation:isGenerating?"spin .7s linear infinite":"none"}}/>
+
+                  {/* Title + meta */}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11.5,fontWeight:700,color:isGenerated&&!isFailed?"#e4f0ff":"#9ca3af",marginBottom:3}}>
+                      {idx+1}. {proto.title}
+                    </div>
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                      <span style={{fontSize:9.5,color:"#354d72"}}>⏱ {proto.time}</span>
+                      <span style={{fontSize:9.5,color:"#354d72"}}>💰 {proto.cost}</span>
+                      <span style={{fontSize:9.5,color:"#6a85b0",fontStyle:"italic"}}>{proto.why}</span>
+                    </div>
+                  </div>
+
+                  {/* Action button */}
+                  {isGenerating?(
+                    <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80",flexShrink:0,display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{width:8,height:8,borderRadius:"50%",border:"1.5px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>
+                      Writing…
+                    </div>
+                  ):isFailed?(
+                    <button onClick={e=>{e.stopPropagation();genProtocol(idx,proto);}}
+                      disabled={generatingIdx!==null}
+                      style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(255,92,92,.4)",background:"rgba(255,92,92,.08)",color:"#fca5a5",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",flexShrink:0}}>
+                      ↺ Retry
+                    </button>
+                  ):isGenerated?(
+                    <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80",flexShrink:0,display:"flex",alignItems:"center",gap:4}}>
+                      {isOpen?"▲ Hide":"▼ Show"}
+                    </div>
+                  ):(
+                    <button onClick={e=>{e.stopPropagation();genProtocol(idx,proto);}}
+                      disabled={generatingIdx!==null}
+                      style={{padding:"5px 14px",borderRadius:3,border:`1px solid ${TEAL}.4)`,background:`${TEAL}.08)`,color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:9.5,fontWeight:700,cursor:generatingIdx!==null?"default":"pointer",flexShrink:0,opacity:generatingIdx!==null?0.5:1}}>
+                      ⚡ Generate
+                    </button>
+                  )}
+                </div>
+
+                {/* Full protocol content — collapsible */}
+                {isGenerated&&!isFailed&&isOpen&&(
+                  <div style={{padding:"16px 18px",borderTop:`1px solid ${TEAL}.15)`,background:"#020617"}}>
+                    <div style={{fontSize:12,color:"#b4c8e8",lineHeight:1.95}}>
+                      <Md text={generated[String(idx)]}/>
+                    </div>
+                    <div style={{marginTop:14,paddingTop:12,borderTop:"1px solid #182640",fontSize:10,color:"#354d72",lineHeight:1.7}}>
+                      ⚠️ Verify against cited primary literature before running. Catalog numbers and prices may change. Consult your institution's biosafety guidelines before starting.
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Regenerate list button */}
+          <div style={{marginTop:4}}>
+            <button onClick={genList} disabled={listLoading||generatingIdx!==null}
+              style={{padding:"5px 14px",borderRadius:3,border:"1px solid #182640",background:"transparent",color:"#354d72",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer"}}>
+              ↺ Re-identify protocols from debate
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -2833,40 +3010,129 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
             const roundNum=parseInt(tab.slice(1));
             const rnd=rounds.find(r=>r.roundNum===roundNum);
             if(!rnd) return null;
+
+            // Extract all PMIDs from all agent responses in this round
+            const allText=rnd.agents.map((a:any)=>a.resp||"").join(" ");
+            const pmidMatches=[...allText.matchAll(/PMID[:\s]*(\d{7,8})/gi)];
+            const uniquePmids=[...new Set(pmidMatches.map(m=>m[1]))].slice(0,12);
+
+            // Count agents who mentioned pip-installable tools (runnability proxy)
+            const pipKeywords=["pandas","numpy","scipy","sklearn","matplotlib","seaborn","statsmodels"];
+            const badKeywords=["rpy2","STAR","FastQC","featureCounts","samtools","snakemake","nextflow"];
+            const runnableAgents=rnd.agents.filter((a:any)=>
+              pipKeywords.some(k=>(a.resp||"").toLowerCase().includes(k))&&
+              !badKeywords.some(k=>(a.resp||"").includes(k))
+            ).length;
+
             return(
               <div>
+                {/* Judge verdict + score dimensions */}
                 {rnd.judge&&(
-                  <div style={{background:"rgba(42,255,128,.03)",border:"1px solid rgba(42,255,128,.14)",borderRadius:3,padding:"10px 13px",marginBottom:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5}}>
+                  <div style={{background:"rgba(42,255,128,.03)",border:"1px solid rgba(42,255,128,.14)",borderRadius:3,padding:"12px 14px",marginBottom:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
                       <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8.5,letterSpacing:2,color:"#2aff80",textTransform:"uppercase"}}>Judge Verdict · Round {rnd.roundNum}</div>
-                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:14,fontWeight:700,color:rnd.judge.score>=CONV?"#2aff80":rnd.judge.score>=45?"#ffc34d":"#ff5c5c"}}>{rnd.judge.score}/100</div>
-                      <div style={{fontSize:9,color:rnd.judge.resolved?"#2aff80":"#ffc34d",fontFamily:"Oxanium,sans-serif"}}>{rnd.judge.resolved?"RESOLVED ✓":"CONTINUING →"}</div>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:16,fontWeight:800,color:rnd.judge.score>=CONV?"#2aff80":rnd.judge.score>=45?"#ffc34d":"#ff5c5c"}}>{rnd.judge.score}%</div>
+                      <div style={{fontSize:9,color:rnd.judge.resolved?"#2aff80":"#ffc34d",fontFamily:"Oxanium,sans-serif",padding:"2px 8px",borderRadius:999,border:`1px solid ${rnd.judge.resolved?"rgba(42,255,128,.3)":"rgba(255,193,77,.3)"}`}}>
+                        {rnd.judge.resolved?"CONSENSUS ✓":"STILL DEBATING →"}
+                      </div>
                     </div>
+
+                    {/* 5-dimension breakdown if available */}
+                    {rnd.judge.dimensions&&(
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5,marginBottom:8}}>
+                        {[
+                          {k:"scientific_accuracy",l:"Accuracy",w:"35%",c:"#00e5ff"},
+                          {k:"code_correctness",l:"Code",w:"25%",c:"#2aff80"},
+                          {k:"experimental_feasibility",l:"Feasibility",w:"20%",c:"#f59e0b"},
+                          {k:"novelty",l:"Novelty",w:"10%",c:"#a78bfa"},
+                          {k:"clarity",l:"Clarity",w:"10%",c:"#f97316"},
+                        ].map(d=>{
+                          const val=(rnd.judge.dimensions as any)[d.k]??0;
+                          const dc=val>=80?"#2aff80":val>=60?"#4ade80":val>=40?"#ffc34d":"#f97316";
+                          return(
+                            <div key={d.k} style={{background:"rgba(0,0,0,.25)",borderRadius:3,padding:"5px 6px",borderTop:`2px solid ${d.c}`}}>
+                              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:7,color:d.c,letterSpacing:.8,marginBottom:3}}>{d.l} {d.w}</div>
+                              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:13,fontWeight:800,color:dc}}>{val}%</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {rnd.judge.unresolved_tensions?.length>0&&(
-                      <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:4}}><b style={{color:"#ffc34d"}}>Open tensions:</b> {rnd.judge.unresolved_tensions.join(" · ")}</div>
+                      <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:5}}>
+                        <b style={{color:"#ffc34d"}}>Open tensions:</b> {rnd.judge.unresolved_tensions.join(" · ")}
+                      </div>
                     )}
                     {rnd.judge.next_debate_focus&&!rnd.judge.resolved&&(
-                      <div style={{fontSize:10.5,color:"#6a85b0"}}><b style={{color:"#00e5ff"}}>Next round focus:</b> {rnd.judge.next_debate_focus}</div>
+                      <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:5}}>
+                        <b style={{color:"#00e5ff"}}>Next focus:</b> {rnd.judge.next_debate_focus}
+                      </div>
+                    )}
+                    {rnd.judge.strongest_agent&&(
+                      <div style={{fontSize:10,color:"#354d72"}}>
+                        <b style={{color:"#a78bfa"}}>Strongest:</b> {rnd.judge.strongest_agent}
+                      </div>
                     )}
                   </div>
                 )}
+
+                {/* Runnability indicator */}
+                <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",borderRadius:3,
+                    background:runnableAgents>=4?"rgba(42,255,128,.06)":"rgba(255,193,77,.06)",
+                    border:`1px solid ${runnableAgents>=4?"rgba(42,255,128,.2)":"rgba(255,193,77,.2)"}`}}>
+                    <span style={{fontSize:10}}>{runnableAgents>=4?"✅":"⚠️"}</span>
+                    <span style={{fontFamily:"Oxanium,sans-serif",fontSize:9,color:runnableAgents>=4?"#2aff80":"#ffc34d"}}>
+                      {runnableAgents}/{rnd.agents.length} agents proposed pip-runnable code
+                    </span>
+                  </div>
+                  {uniquePmids.length>0&&(
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <span style={{fontFamily:"Oxanium,sans-serif",fontSize:9,color:"#6a85b0"}}>📚 Citations:</span>
+                      {uniquePmids.map(pmid=>(
+                        <a key={pmid} href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noopener"
+                          style={{fontFamily:"Oxanium,sans-serif",fontSize:9,color:"#00e5ff",textDecoration:"none",
+                            padding:"2px 7px",borderRadius:3,border:"1px solid rgba(0,229,255,.25)",background:"rgba(0,229,255,.05)"}}>
+                          PMID:{pmid}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Agent responses grid */}
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:10}}>
-                  {rnd.agents.map(a=>{
-                    const ag=AGENTS.find(x=>x.id===a.aid)||{name:a.aid,color:"#888",lens:""};
+                  {rnd.agents.map((a:any)=>{
+                    const ag=AGENTS.find(x=>x.id===a.aid)||{name:a.aid,color:"#888",lens:"",id:""};
+                    // Extract PMIDs from this agent's response
+                    const agPmids=[...((a.resp||"").matchAll(/PMID[:\s]*(\d{7,8})/gi))].map((m:any)=>m[1]);
+                    // Check runnability
+                    const isRunnable=pipKeywords.some(k=>(a.resp||"").toLowerCase().includes(k))&&!badKeywords.some(k=>(a.resp||"").includes(k));
                     return(
-                      <div key={a.aid} style={{background:ag.id==="a007"?"rgba(255,45,85,.04)":"#0c1a30",border:`1px solid ${ag.id==="a007"?"rgba(255,45,85,.25)":"#182640"}`,borderRadius:3,padding:12,position:"relative",overflow:"hidden"}}>
+                      <div key={a.aid} style={{background:(ag as any).id==="a007"?"rgba(255,45,85,.04)":"#0c1a30",border:`1px solid ${(ag as any).id==="a007"?"rgba(255,45,85,.25)":"#182640"}`,borderRadius:3,padding:12,position:"relative",overflow:"hidden"}}>
                         <div style={{position:"absolute",top:0,left:0,bottom:0,width:2,background:ag.color}}/>
-                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:6}}>
+                        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:4}}>
                           <div>
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{display:"flex",alignItems:"center",gap:5}}>
                               <div style={{width:6,height:6,borderRadius:"50%",background:ag.color,flexShrink:0}}/>
                               <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11,fontWeight:700,color:"#cee0ff"}}>{ag.name}</div>
+                              {isRunnable&&<span title="Uses pip-installable code" style={{fontSize:9}}>✅</span>}
                             </div>
-                            <div style={{fontSize:8,color:"#354d72",letterSpacing:1.2,marginLeft:12,marginTop:1,textTransform:"uppercase"}}>{ag.lens}</div>
+                            <div style={{fontSize:8,color:"#354d72",letterSpacing:1.2,marginLeft:11,marginTop:1,textTransform:"uppercase"}}>{ag.lens}</div>
                           </div>
-                          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:16,fontWeight:700,color:ag.color}}>{a.score}</div>
                         </div>
                         <div style={{fontSize:11,color:"#6a85b0",lineHeight:1.75,maxHeight:220,overflowY:"auto",marginTop:5}}><Md text={a.resp}/></div>
+                        {agPmids.length>0&&(
+                          <div style={{marginTop:7,paddingTop:7,borderTop:"1px solid #182640",display:"flex",gap:5,flexWrap:"wrap"}}>
+                            {agPmids.slice(0,3).map((pmid:string)=>(
+                              <a key={pmid} href={`https://pubmed.ncbi.nlm.nih.gov/${pmid}/`} target="_blank" rel="noopener"
+                                style={{fontSize:8.5,color:"#00e5ff",textDecoration:"none",padding:"1px 6px",borderRadius:2,border:"1px solid rgba(0,229,255,.2)",background:"rgba(0,229,255,.04)"}}>
+                                PMID:{pmid}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
