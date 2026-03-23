@@ -418,50 +418,38 @@ Write the Conclusion Card now.`;
   catch { return "Conclusion generation failed. See the tabs below for full details."; }
 }
 
-async function generateCode(q, finalConsensus, userInput){
-  const sys=`You are a bioinformatics expert generating practical Python code for a biology research problem.
-
-Structure your response EXACTLY as follows:
+async function generateCode(q:any, finalConsensus:string, userInput:string){
+  const sys=`You are a bioinformatics expert. Write practical Python starter code for this biology problem. Format your response as:
 
 ## What this code does
-[2-3 sentence plain-English description]
+[2-3 sentences]
 
-## Install these first
-[pip install commands on one line each]
+## Install first
+[pip install commands]
 
 \`\`\`python
-# [50-100 lines of working Python code]
-# Use synthetic data examples so the code runs immediately without real data
-# Clear comments explaining each section in plain English
-# Realistic biology data shapes and variable names
+[40-60 lines of working Python using synthetic data]
 \`\`\`
 
-## What you can do RIGHT NOW with this code
-- [specific capability 1 — plain English]
-- [specific capability 2 — plain English]
-- [specific capability 3 — plain English]
+## What it can do now
+[3 bullet points]
 
-## What this code CANNOT do yet — you need to provide or do:
-- **Needs your real data:** [exactly what data files/formats the researcher must supply]
-- **Needs wet-lab validation:** [what computational outputs must be confirmed experimentally — code alone cannot do this]
-- **Needs a specialist for:** [more complex analyses beyond this starting point]
-- **Still beyond current AI capability:** [what remains genuinely unsolved even with more code and more data]
+## What it cannot do yet
+[3 bullet points — real data needed, wet-lab validation, specialist required]`;
 
-Keep the code simple. Prioritize clarity over complexity. It must run in under 5 minutes on a laptop.`;
-  try{
-    let attempts=0;
-    while(attempts<3){
-      try{
-        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
-      }catch(e:any){
-        attempts++;
-        if(e.message?.includes("429")&&attempts<3){
-          await new Promise(r=>setTimeout(r,15000*attempts));
-        }else throw e;
-      }
+  const msg=`Biology problem: ${q.title}\nContext: ${userInput||"none"}\n\nConsensus summary:\n${finalConsensus.slice(0,600)}\n\nWrite starter code now.`;
+
+  let attempts=0;
+  while(attempts<4){
+    try{
+      await new Promise(r=>setTimeout(r,8000+attempts*10000));
+      return await callClaude(sys,msg);
+    }catch(e:any){
+      attempts++;
+      if(attempts>=4) return `Code generation failed after ${attempts} attempts. The AI rate limit was reached — please click "⚡ Generate Code Now" in the Starter Code tab to retry.`;
     }
   }
-  catch{return "Resolution generation failed. See debate rounds above.";}
+  return "Code generation failed. Please retry from the Starter Code tab.";
 }
 
 /* ═══════ RESPONSIVE HOOK ═══════ */
