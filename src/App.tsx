@@ -1,5 +1,24 @@
 import React, { useState, useEffect, useCallback } from "react";
 
+class ErrorBoundary extends React.Component<{children:any},{crashed:boolean,msg:string}>{
+  constructor(p:any){super(p);this.state={crashed:false,msg:""};}
+  static getDerivedStateFromError(e:any){return{crashed:true,msg:e?.message||"Unknown error"};}
+  componentDidCatch(e:any,info:any){console.error("BioArena crashed:",e,info);}
+  render(){
+    if(this.state.crashed) return(
+      <div style={{padding:48,textAlign:"center",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif",background:"#030812",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+        <div style={{fontSize:40,marginBottom:16}}>⚠️</div>
+        <div style={{fontSize:18,marginBottom:8,color:"#e4f0ff"}}>Something went wrong</div>
+        <div style={{fontSize:12,color:"#354d72",marginBottom:28,maxWidth:400}}>{this.state.msg}</div>
+        <button onClick={()=>window.location.reload()} style={{padding:"10px 28px",borderRadius:4,border:"1px solid #ff5c5c",background:"transparent",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif",fontSize:12,cursor:"pointer",letterSpacing:1}}>
+          Reload Page
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 const _fl = document.createElement("link");
 _fl.rel = "stylesheet";
 _fl.href = "https://fonts.googleapis.com/css2?family=Oxanium:wght@300;400;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap";
@@ -175,7 +194,7 @@ const AGENTS = [
 
 /* ═══════ CONSTANTS ═══════ */
 const SK = "bioarena:iters";
-const MAX_ROUNDS = 3;   // up to 3 rounds to reach best resolution
+const MAX_ROUNDS = 3;   // 3 rounds — enough for meaningful debate, stays under rate limits
 const MIN_ROUNDS = 2;   // always at least 2 rounds regardless of early convergence
 const CONV = 65;        // threshold for "resolved" — raised so agents push harder
 
@@ -235,25 +254,24 @@ async function callClaude(system, userMsg) {
     }
   }
 
- // ── Default path — via Netlify proxy (keeps key safe on server) ──
-const res = await fetch("https://bioarena-api.sankalpachakraborty91.workers.dev", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    model: "llama-3.1-8b-instant",
-    max_tokens: 500,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: userMsg }
-    ]
-  }),
-});
-if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
-const d = await res.json();
-return d.choices?.[0]?.message?.content || "No response.";
+  // ── Default path — Cloudflare Worker proxy (key stays server-side) ──
+  // Replace YOUR-WORKER-URL with your actual Cloudflare Worker URL
+  const res = await fetch("https://bioarena-api.sankalpachakraborty91.workers.dev/", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      model:"llama-3.1-8b-instant",
+      max_tokens:500,
+      messages:[{role:"system",content:system},{role:"user",content:userMsg}]
+    }),
+  });
+  if(!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  const d=await res.json();
+  return d.choices?.[0]?.message?.content||"No response.";
 }
-async function loadIters(qid){try{const r=await window.storage.get(`${SK}:${qid}`,true);return r?JSON.parse(r.value):[];}catch{return[];}}
-async function saveIters(qid,iters){try{await window.storage.set(`${SK}:${qid}`,JSON.stringify(iters),true);}catch{}}
+
+async function loadIters(qid:any){try{const r=localStorage.getItem(`${SK}:${qid}`);return r?JSON.parse(r):[];}catch{return[];}}
+async function saveIters(qid:any,iters:any){try{localStorage.setItem(`${SK}:${qid}`,JSON.stringify(iters));}catch{}}
 
 /* ═══════ DEBATE ENGINE ═══════ */
 const JUDGE_SYS=`You are an impartial scientific arbiter. Evaluate whether expert agents have reached sufficient consensus on a biology problem.
@@ -272,24 +290,50 @@ async function judgeRound(q, allRounds, prevConsensus){
   }catch{return{score:48,resolved:false,unresolved_tensions:["Parse error"],next_debate_focus:"Provide more specific experimental evidence and concrete numerical targets"};}
 }
 
-async function runDebateRound(q, roundNum, prevRounds, userInput, onStatus, prevConsensus){
+async function runDebateRound(q:any, roundNum:number, prevRounds:any[], userInput:string, onStatus:any, prevConsensus:string){
   const agents=[];
- for(const ag of AGENTS){
+
+  // Build relevance context for follow-up inputs
+  const relevanceNote = userInput && prevRounds.length>0
+    ? `\n\n**CRITICAL — User follow-up input to assess:** "${userInput}"\nBefore responding, explicitly state in 1 sentence: (a) how relevant this input is to the original problem (HIGH/MEDIUM/LOW relevance and why), then (b) how you will specifically incorporate it. If LOW relevance, say so honestly and explain what you'll focus on instead.`
+    : "";
+
+  for(const ag of AGENTS){
     onStatus(ag.id,"running",roundNum);
-    // Wait between agents to stay under rate limit
-    await new Promise(r=>setTimeout(r,7000));
+    await new Promise(r=>setTimeout(r,5000));
+
     let msg=`**Problem:** ${q.title}\n\n${q.prompt}\n\n`;
-    if(userInput) msg+=`**Researcher's additional input (incorporate this fully):** ${userInput}\n\n`;
-    // Give agents context from a prior completed session when available
-    if(prevConsensus) msg+=`**Previous session consensus (you MUST build on, challenge, or extend this — do NOT repeat it):**\n${prevConsensus.slice(0,350)}\n\n`;
+    if(userInput && prevRounds.length===0) msg+=`**Researcher context (incorporate specifically):** ${userInput}\n\n`;
+    if(relevanceNote) msg+=relevanceNote+"\n\n";
+    if(prevConsensus) msg+=`**Previous session consensus (build on/challenge — do NOT repeat):**\n${prevConsensus.slice(0,300)}\n\n`;
+
     if(prevRounds.length>0){
       const last=prevRounds[prevRounds.length-1];
-      const others=last.agents.filter(a=>a.aid!==ag.id).map(a=>{const oa=AGENTS.find(x=>x.id===a.aid);return`**${oa?.name} (${oa?.lens}):** ${a.resp.slice(0,200)}`;}).join("\n\n");
-      const jn=last.judge?`\n\n**Judge verdict (${last.judge.score}/100) — focus for this round:** ${last.judge.next_debate_focus}`:"";
-      msg+=`DEBATE ROUND ${roundNum} of up to ${MAX_ROUNDS}. Do NOT repeat Round ${roundNum-1} analysis. You MUST:\n1. Directly challenge the strongest specific counterpoint from a peer (name them)\n2. Add NEW specifics — numbers, tool names, protocols, or mechanisms your previous analysis missed\n3. State explicitly where you now agree and where you still disagree\n4. If the judge score is below ${CONV}, you must be MORE specific this round, not just restate\n\n**Other agents from Round ${roundNum-1}:**\n${others}${jn}\n\nYour lens: **${ag.lens}**. Be concrete and push toward resolution. 270 words max.`;
+      const others=last.agents.filter((a:any)=>a.aid!==ag.id).map((a:any)=>{const oa=AGENTS.find((x:any)=>x.id===a.aid);return`**${oa?.name} (${oa?.lens}):** ${a.resp.slice(0,180)}`;}).join("\n\n");
+      const jn=last.judge?`\n\n**Judge verdict (${last.judge.score}%) — next focus:** ${last.judge.next_debate_focus}`:"";
+      msg+=`ROUND ${roundNum}/${MAX_ROUNDS}. Do NOT repeat prior analysis. You MUST:
+1. State your relevance assessment of the user input (if any)
+2. Directly challenge ONE specific peer claim (name them + quote their claim)
+3. Add NEW specifics: exact tool names, sample sizes, p-value thresholds, protocols
+4. Structure your response with these labeled sections:
+   🔬 HYPOTHESIS: [one sentence — testable, specific]
+   🧪 PROTOCOL: [2-3 concrete steps with reagents/tools]
+   📊 ANALYSIS: [specific method + expected output]
+   ⚠️ LIMITATION: [one honest limitation of your approach]
+
+**Other agents Round ${roundNum-1}:**\n${others}${jn}
+
+Lens: **${ag.lens}**. 260 words max. No generic statements.`;
     }else{
-      msg+=`ROUND 1 — State your most specific, concrete initial position from your unique lens: **${ag.lens}**. Cite specific tools, numbers, protocols, or mechanisms. Do not be vague. 270 words max.`;
+      msg+=`ROUND 1 — Establish your position. Structure EXACTLY as:
+🔬 HYPOTHESIS: [one testable sentence — cite a specific mechanism/pathway/tool]
+🧪 PROTOCOL: [2-3 specific steps with named reagents, tools, or methods]
+📊 ANALYSIS: [exact computational or statistical approach]
+⚠️ LIMITATION: [one honest gap in your approach]
+
+Lens: **${ag.lens}**. Be specific — cite tool names, numbers, organisms. 260 words max. No vague generalities.`;
     }
+
     try{
       let resp="";
       let attempts=0;
@@ -304,9 +348,7 @@ async function runDebateRound(q, roundNum, prevRounds, userInput, onStatus, prev
             const wait=15000*attempts;
             onStatus(ag.id,`retrying ${attempts}/3…`,roundNum);
             await new Promise(r=>setTimeout(r,wait));
-          }else{
-            throw e;
-          }
+          }else{ throw e; }
         }
       }
       agents.push({aid:ag.id,resp,score:55+Math.floor(Math.random()*25)});
@@ -324,19 +366,7 @@ async function buildFinalConsensus(q, allRounds, userInput, resolved, prevConsen
   const priorNote = prevConsensus ? `\n\nPRIOR SESSION CONSENSUS (this session must supersede it with improvements):\n${prevConsensus.slice(0,350)}` : "";
   const note=resolved?"":"\n\nNote: Max rounds reached without full convergence. Synthesize the best possible current consensus. Clearly label contested points. Always produce actionable output.";
   const sys=`You are a senior scientist writing a research resolution after a multi-round expert debate with ${AGENTS.length} agents. Write: (1) **Final Consensus** — what all experts agreed on (be specific — cite tools, numbers, mechanisms), (2) **Resolved Tensions** — how disagreements were settled, (3) **Still Open** — what genuinely remains unknown, (4) **Recommended Action Plan** — 5 concrete next steps with specific tool names, (5) **Success Metrics** — measurable targets.${note} Use **bold headers**. 450 words max.`;
-  try{
-    let attempts=0;
-    while(attempts<3){
-      try{
-        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
-      }catch(e:any){
-        attempts++;
-        if(e.message?.includes("429")&&attempts<3){
-          await new Promise(r=>setTimeout(r,15000*attempts));
-        }else throw e;
-      }
-    }
-  }
+  try{return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);}
   catch{return "Resolution generation failed. See debate rounds above.";}
 }
 
@@ -354,20 +384,8 @@ Write a friendly numbered step-by-step action plan. STRICT RULES:
 - Then: "**What the ${AGENTS.length} AI agents agreed on:**" — 3-4 plain-English bullet points of the main conclusions
 - Finally: "**⚠️ What this debate CANNOT fully solve for you yet:**" — be specific and honest
 - Max 8 steps.${resolved?"":" Note: debate reached max rounds without full convergence — frame as best current guidance and be honest about remaining uncertainty."}${priorNote}`;
-  try{
-    let attempts=0;
-    while(attempts<3){
-      try{
-        return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);
-      }catch(e:any){
-        attempts++;
-        if(e.message?.includes("429")&&attempts<3){
-          await new Promise(r=>setTimeout(r,15000*attempts));
-        }else throw e;
-      }
-    }
-  }
-  catch{return "Resolution generation failed. See debate rounds above.";}
+  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher input: ${userInput||"none"}\n\nExpert consensus (${AGENTS.length} agents, ${resolved?"resolved":"best effort"}):\n${finalConsensus.slice(0,1200)}\n\nWrite the plain-English guide.`);}
+  catch{return "Plain-language summary could not be generated.";}
 }
 
 async function buildConclusion(q, allRounds, finalConsensus, userInput, resolved){
@@ -418,38 +436,38 @@ Write the Conclusion Card now.`;
   catch { return "Conclusion generation failed. See the tabs below for full details."; }
 }
 
-async function generateCode(q:any, finalConsensus:string, userInput:string){
-  const sys=`You are a bioinformatics expert. Write practical Python starter code for this biology problem. Format your response as:
+async function generateCode(q, finalConsensus, userInput){
+  const sys=`You are a bioinformatics expert generating practical Python code for a biology research problem.
+
+Structure your response EXACTLY as follows:
 
 ## What this code does
-[2-3 sentences]
+[2-3 sentence plain-English description]
 
-## Install first
-[pip install commands]
+## Install these first
+[pip install commands on one line each]
 
 \`\`\`python
-[40-60 lines of working Python using synthetic data]
+# [50-100 lines of working Python code]
+# Use synthetic data examples so the code runs immediately without real data
+# Clear comments explaining each section in plain English
+# Realistic biology data shapes and variable names
 \`\`\`
 
-## What it can do now
-[3 bullet points]
+## What you can do RIGHT NOW with this code
+- [specific capability 1 — plain English]
+- [specific capability 2 — plain English]
+- [specific capability 3 — plain English]
 
-## What it cannot do yet
-[3 bullet points — real data needed, wet-lab validation, specialist required]`;
+## What this code CANNOT do yet — you need to provide or do:
+- **Needs your real data:** [exactly what data files/formats the researcher must supply]
+- **Needs wet-lab validation:** [what computational outputs must be confirmed experimentally — code alone cannot do this]
+- **Needs a specialist for:** [more complex analyses beyond this starting point]
+- **Still beyond current AI capability:** [what remains genuinely unsolved even with more code and more data]
 
-  const msg=`Biology problem: ${q.title}\nContext: ${userInput||"none"}\n\nConsensus summary:\n${finalConsensus.slice(0,600)}\n\nWrite starter code now.`;
-
-  let attempts=0;
-  while(attempts<4){
-    try{
-      await new Promise(r=>setTimeout(r,8000+attempts*10000));
-      return await callClaude(sys,msg);
-    }catch(e:any){
-      attempts++;
-      if(attempts>=4) return `Code generation failed after ${attempts} attempts. The AI rate limit was reached — please click "⚡ Generate Code Now" in the Starter Code tab to retry.`;
-    }
-  }
-  return "Code generation failed. Please retry from the Starter Code tab.";
+Keep the code simple. Prioritize clarity over complexity. It must run in under 5 minutes on a laptop.`;
+  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher context: ${userInput||"none"}\n\nExpert consensus:\n${finalConsensus.slice(0,900)}\n\nGenerate practical starter code.`);}
+  catch{return "Code generation failed. Please try again.";}
 }
 
 /* ═══════ RESPONSIVE HOOK ═══════ */
@@ -501,23 +519,7 @@ function CodeMd({text}){
     })}</div>
   );
 }
-class ErrorBoundary extends React.Component<{children:any},{crashed:boolean,msg:string}>{
-  constructor(p:any){super(p);this.state={crashed:false,msg:""};}
-  static getDerivedStateFromError(e:any){return{crashed:true,msg:e?.message||"Unknown error"};}
-  render(){
-    if(this.state.crashed) return(
-      <div style={{padding:40,textAlign:"center",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif"}}>
-        <div style={{fontSize:32,marginBottom:16}}>⚠️</div>
-        <div style={{fontSize:16,marginBottom:8}}>Something went wrong</div>
-        <div style={{fontSize:12,color:"#354d72",marginBottom:24}}>{this.state.msg}</div>
-        <button onClick={()=>window.location.reload()} style={{padding:"10px 24px",borderRadius:4,border:"1px solid #ff5c5c",background:"transparent",color:"#ff5c5c",fontFamily:"Oxanium,sans-serif",fontSize:12,cursor:"pointer"}}>
-          Reload page
-        </button>
-      </div>
-    );
-    return this.props.children;
-  }
-}
+
 /* ═══════ NAV ═══════ */
 function Nav({page,goHome,goCommunity,goLB,customAPI}){
   const mob=useIsMobile();
@@ -1031,9 +1033,8 @@ function Category({catId,goHome,goQuestion}){
 /* ═══════ LIVE PANEL ═══════ */
 function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
   const sc=score===null?"#354d72":score>=80?"#2aff80":score>=60?"#4ade80":score>=40?"#ffc34d":"#f97316";
-if(!round && !phase) return null;
-const pl={"cooling down…":"⏳ Cooling down 30s between rounds to avoid rate limits…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"};
-const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
+  const pl={debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"}[phase]||phase;
+  const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
 
   return(
     <div style={{background:"#020617",border:"1px solid #00e5ff",borderRadius:4,padding:16,marginBottom:18,position:"relative"}}>
@@ -1103,7 +1104,7 @@ const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
           {(phase==="judging"||phase==="consensus"||phase==="plain"||phase==="conclusion"||phase==="code")&&(
             <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",background:"rgba(42,255,128,.04)",border:"1px solid rgba(42,255,128,.15)",borderRadius:3,marginTop:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#2aff80",animation:"blink 1s infinite",flexShrink:0}}/>
-              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80"}}>{pl[phase]||phase}</div>
+              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80"}}>{pl}</div>
             </div>
           )}
         </div>
@@ -1179,6 +1180,7 @@ function Question({qid,goHome,goCategory}){
   const [loadingIters,setLoadingIters]=useState(true);
   const [running,setRunning]=useState(false);
   const [userInput,setUserInput]=useState("");
+  const [structuredCtx,setStructuredCtx]=useState({organism:"",modality:"",tools:"",output:""});
   const [liveRound,setLiveRound]=useState(0);
   const [liveAgentStatus,setLiveAgentStatus]=useState({});
   const [liveScore,setLiveScore]=useState(null);
@@ -1206,13 +1208,20 @@ function Question({qid,goHome,goCategory}){
   },[qid]);
 
   const run=useCallback(async()=>{
-  if(running) return;
-  setRunning(true);
-  const ui=userInput.trim();
-  try{
+    if(running) return;
+    setRunning(true);
+    const ui=userInput.trim();
+    const ctx=structuredCtx as any;
+    const structuredStr=[
+      ctx.organism&&`Organism/Cell type: ${ctx.organism}`,
+      ctx.modality&&`Data modality: ${ctx.modality}`,
+      ctx.tools&&`Tools/constraints: ${ctx.tools}`,
+      ctx.output&&`Desired output: ${ctx.output}`,
+    ].filter(Boolean).join(" | ");
+    const effectiveUi=structuredStr?`[Lab context: ${structuredStr}]${ui?` — ${ui}`:""}`:ui;
 
     const sortedIters=[...iters].sort((a,b)=>b.ts-a.ts);
-    const prevConsensus=sortedIters.length>0 ? sortedIters[0].consensus||"" : "";
+    const prevConsensus=sortedIters.length>0?sortedIters[0].consensus||"":"";
 
     setLiveRound(0);setLiveAgentStatus({});setLiveScore(null);setLivePhase("debating");setLiveRounds([]);
     const allRounds=[];
@@ -1220,20 +1229,14 @@ function Question({qid,goHome,goCategory}){
 
     while(round<MAX_ROUNDS){
       round++;
-      // Cooldown between rounds to reset the token-per-minute bucket
-      if(round>1){
-        setLivePhase("cooling down…");
-        await new Promise(r=>setTimeout(r,30000));
-      }
       setLiveRound(round);
       setLivePhase("debating");
-      const roundAgents=await runDebateRound(q,round,allRounds,ui,onAgentStatus,prevConsensus);
+      const roundAgents=await runDebateRound(q,round,allRounds,effectiveUi,onAgentStatus,prevConsensus);
       setLivePhase("judging");
       const judgeResult=await judgeRound(q,[...allRounds,{agents:roundAgents}],prevConsensus);
       setLiveScore(judgeResult.score);
-      // Collect a short snippet from each agent for live display
-      const snippets=roundAgents.map(a=>{
-        const ag=AGENTS.find(x=>x.id===a.aid);
+      const snippets=roundAgents.map((a:any)=>{
+        const ag=AGENTS.find((x:any)=>x.id===a.aid);
         return {name:ag?.name||a.aid, color:ag?.color||"#888", lens:ag?.lens||"", snippet:a.resp.slice(0,180)};
       });
       const liveEntry={
@@ -1250,19 +1253,19 @@ function Question({qid,goHome,goCategory}){
 
     await new Promise(r=>setTimeout(r,8000));
     setLivePhase("consensus");
-    const finalConsensus=await buildFinalConsensus(q,allRounds,ui,true,prevConsensus);
+    const finalConsensus=await buildFinalConsensus(q,allRounds,effectiveUi,true,prevConsensus);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("plain");
-    const plainSummary=await buildPlainSummary(q,finalConsensus,ui,true,prevConsensus);
+    const plainSummary=await buildPlainSummary(q,finalConsensus,effectiveUi,true,prevConsensus);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("conclusion");
-    const conclusion=await buildConclusion(q,allRounds,finalConsensus,ui,true);
+    const conclusion=await buildConclusion(q,allRounds,finalConsensus,effectiveUi,true);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("code");
-    const code=await generateCode(q,finalConsensus,ui);
+    const code=await generateCode(q,finalConsensus,effectiveUi);
 
     const iteration={
-      id:Date.now().toString(),ts:Date.now(),ui,sessionId:SESSION_ID,
+      id:Date.now().toString(),ts:Date.now(),ui:effectiveUi,sessionId:SESSION_ID,
       rounds:allRounds,totalRounds:allRounds.length,finalScore,resolved:true,
       consensus:finalConsensus,plainSummary,conclusion,code,
       isFollowUp:prevConsensus.length>0,
@@ -1270,15 +1273,11 @@ function Question({qid,goHome,goCategory}){
     const updated=[...iters,iteration];
     await saveIters(qid,updated);
     setIters(updated);
-    setUserInput(""); // clear input after run so user can type the next question
+    setUserInput("");
+    setStructuredCtx({organism:"",modality:"",tools:"",output:""});
     setRunning(false);
     setLivePhase("done");
-  }catch(err:any){
-    console.error("Debate run failed:",err);
-    setLivePhase("error");
-    setRunning(false);
-  }
-},[q,userInput,running,iters,onAgentStatus]);
+  },[q,userInput,structuredCtx,running,iters,onAgentStatus]);
 
   const activeIter=iters.length>0?[...iters].sort((a,b)=>b.ts-a.ts)[0]:null;
   const estMin=Math.max(8,Math.min(25,Math.round(q.prompt.length/800)));
@@ -1298,21 +1297,43 @@ function Question({qid,goHome,goCategory}){
           <div className="qa-body" style={{fontSize:12.5,color:"#9ca3af",lineHeight:1.85,whiteSpace:"pre-wrap",background:"#020617",borderRadius:4,border:"1px solid #1f2937",padding:"12px 14px",marginBottom:14}}>
             {q.prompt}
           </div>
-          {/* Input — always visible, always triggers a full fresh debate */}
+          {/* Input — structured lab ticket form */}
           <div style={{background:"#020617",borderRadius:4,border:"1px solid #223260",padding:"12px 13px",position:"relative",marginTop:14}}>
             <div style={{position:"absolute",top:-8,left:12,background:"#020617",padding:"0 7px",fontSize:8,letterSpacing:2.5,color:"#00e5ff",fontFamily:"Oxanium,sans-serif"}}>
-              {iters.length>0?"ADD FOLLOW-UP INPUT → TRIGGERS FULL NEW DEBATE":"YOUR HYPOTHESIS / CONTEXT"}
+              {iters.length>0?"ADD FOLLOW-UP → NEW DEBATE":"YOUR LAB CONTEXT"}
             </div>
-            <div style={{fontSize:11,color:"#4b5563",marginBottom:9,lineHeight:1.65}}>
+            {iters.length===0&&(
+              <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"1fr 1fr",gap:8,marginBottom:10}}>
+                {[
+                  {key:"organism",label:"Organism / Cell type",ph:"e.g. human hepatocytes, mouse, HEK293"},
+                  {key:"modality",label:"Data / Modality",ph:"e.g. bulk RNA-seq, scRNA-seq, proteomics"},
+                  {key:"tools",label:"Tools / Budget constraints",ph:"e.g. Python only, no cloud, DESeq2"},
+                  {key:"output",label:"Desired output",ph:"e.g. working code, hypothesis, protocol"},
+                ].map(f=>(
+                  <div key={f.key}>
+                    <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#354d72",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>{f.label}</div>
+                    <input
+                      value={(structuredCtx as any)[f.key]||""}
+                      onChange={e=>setStructuredCtx((p:any)=>({...p,[f.key]:e.target.value}))}
+                      disabled={running}
+                      placeholder={f.ph}
+                      style={{width:"100%",background:"#030812",border:"1px solid #1e293b",borderRadius:3,padding:"7px 9px",color:"#b4c8e8",fontFamily:"'JetBrains Mono',monospace",fontSize:11,outline:"none"}}
+                      onFocus={e=>e.target.style.borderColor="#334155"} onBlur={e=>e.target.style.borderColor="#1e293b"}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{fontSize:11,color:"#4b5563",marginBottom:7,lineHeight:1.55}}>
               {iters.length>0
-                ? <>Every time you submit — with or without new text — <b style={{color:"#00e5ff"}}>all {AGENTS.length} agents run a completely fresh multi-round debate</b> (min {MIN_ROUNDS}, max {MAX_ROUNDS} rounds). Your new input is incorporated and agents automatically build on the previous session's findings. The input clears after each run so you can keep refining.</>
-                : <>Type your hypothesis, constraints, or specific questions. All {AGENTS.length} agents will debate for at least {MIN_ROUNDS} rounds (up to {MAX_ROUNDS}) until consensus ≥ {CONV}/100, then produce a <b style={{color:"#ffc34d"}}>plain-English action plan</b> and <b style={{color:"#2aff80"}}>starter code</b>.</>
+                ? <>All {AGENTS.length} agents will first <b style={{color:"#fbbf24"}}>assess relevance</b> of your input to the original question, then give specific answers based on prior findings.</>
+                : <>Add any specific context above, then describe your question or hypothesis below.</>
               }
             </div>
             <textarea value={userInput} onChange={e=>setUserInput(e.target.value)} disabled={running} rows={3}
               placeholder={iters.length>0
-                ? `E.g. "Now focus on batch correction since we have samples from 3 different labs" or "Add GSEA pathway enrichment to the code"…`
-                : `E.g. "We work with primary hepatocytes, not cell lines" or "Focus on m6A modification in isoform selection"…`
+                ? `E.g. "Now focus on batch correction across 3 labs" or "Add GSEA to the code"…\nAgents will explicitly assess how relevant this is before responding.`
+                : `E.g. "We want to identify DEGs between fibrotic and healthy hepatocytes" or "Focus on m6A in isoform selection"…`
               }
               style={{width:"100%",background:"#030812",border:"1px solid #1e293b",borderRadius:3,padding:"10px 12px",color:"#b4c8e8",fontFamily:"'JetBrains Mono',monospace",fontSize:12,lineHeight:1.7,resize:"vertical",minHeight:68,outline:"none",opacity:running?.5:1}}
               onFocus={e=>e.target.style.borderColor="#334155"} onBlur={e=>e.target.style.borderColor="#1e293b"}/>
@@ -1433,6 +1454,38 @@ function ConclusionPanel({conclusion, rounds, finalScore, resolved}){
           <span style={{color:"#2aff80"}}>80–100% full convergence</span>
         </div>
       </div>
+
+      {/* Reasoning trace timeline */}
+      {rounds.length>0&&(
+        <div style={{background:"#0c1a30",border:"1px solid #182640",borderRadius:4,padding:"12px 14px",marginBottom:14}}>
+          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8.5,letterSpacing:2,color:"#6a85b0",textTransform:"uppercase",marginBottom:10}}>🔬 Reasoning Trace</div>
+          <div style={{display:"flex",alignItems:"flex-start",gap:0,overflowX:"auto",paddingBottom:4}}>
+            {rounds.map((r:any,i:number)=>{
+              const sc=r.judge?.score??0;
+              const col=sc>=80?"#2aff80":sc>=60?"#4ade80":sc>=40?"#ffc34d":"#f97316";
+              return(
+                <div key={i} style={{display:"flex",alignItems:"center",flexShrink:0}}>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:col+"22",border:`2px solid ${col}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"Oxanium,sans-serif",fontSize:10,fontWeight:700,color:col}}>{i+1}</div>
+                    <div style={{fontSize:9,color:col,fontFamily:"Oxanium,sans-serif",fontWeight:700}}>{sc}%</div>
+                    <div style={{fontSize:8.5,color:"#354d72",textAlign:"center",maxWidth:80,lineHeight:1.4}}>
+                      {r.judge?.unresolved_tensions?.[0]?.slice(0,35)||"converging"}
+                    </div>
+                  </div>
+                  {i<rounds.length-1&&<div style={{width:32,height:2,background:"#182640",margin:"0 4px",marginBottom:20,flexShrink:0}}/>}
+                </div>
+              );
+            })}
+            <div style={{display:"flex",alignItems:"center",flexShrink:0}}>
+              <div style={{width:32,height:2,background:"#182640",margin:"0 4px",marginBottom:20}}/>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{width:28,height:28,borderRadius:"50%",background:"rgba(167,139,250,.15)",border:"2px solid #a78bfa",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12}}>✓</div>
+                <div style={{fontSize:9,color:"#a78bfa",fontFamily:"Oxanium,sans-serif",fontWeight:700}}>consensus</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Section cards */}
       <div style={{display:"grid",gap:10}}>
@@ -1595,6 +1648,30 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
           {tab==="code"&&(
             <div style={{background:"#020617",border:"1px solid #1e293b",borderRadius:4,padding:"18px 20px",position:"relative"}}>
               <div style={{position:"absolute",top:-8,left:14,background:"#020617",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>STARTER CODE — PYTHON</div>
+              {it.code&&!generatingCode&&(
+                <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+                  <button onClick={()=>{
+                    const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
+                    const encoded=encodeURIComponent(code);
+                    const nb=encodeURIComponent(JSON.stringify({nbformat:4,nbformat_minor:5,metadata:{kernelspec:{display_name:"Python 3",language:"python",name:"python3"}},cells:[{cell_type:"code",source:code,metadata:{},outputs:[],execution_count:null}]}));
+                    window.open(`https://colab.research.google.com/gist/blank?code=${encoded}`,"_blank");
+                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(255,165,0,.4)",background:"rgba(255,165,0,.08)",color:"#fbbf24",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    <span>▶</span> Open in Colab
+                  </button>
+                  <button onClick={()=>{
+                    const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
+                    navigator.clipboard.writeText(code).then(()=>alert("Code copied! Paste into a Jupyter notebook cell."));
+                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(42,255,128,.3)",background:"rgba(42,255,128,.06)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    📋 Copy for Jupyter
+                  </button>
+                  <button onClick={()=>{
+                    const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
+                    navigator.clipboard.writeText(code).then(()=>alert("Code copied! Paste into an R Markdown cell or use reticulate::py_run_string()."));
+                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(139,92,246,.3)",background:"rgba(139,92,246,.06)",color:"#a78bfa",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    📋 Copy for RStudio
+                  </button>
+                </div>
+              )}
               {generatingCode&&(
                 <div style={{display:"flex",alignItems:"center",gap:10,color:"#2aff80",fontSize:12,padding:"20px 0",fontFamily:"Oxanium,sans-serif"}}>
                   <span style={{width:14,height:14,borderRadius:"50%",border:"2px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite",flexShrink:0}}/>Generating practical code…
@@ -1703,32 +1780,34 @@ const SEED_QUESTIONS = [
   {id:"seed_10",title:"How would you modify the bulk deconvolution engine to run on GPU using PyTorch instead of NumPy?",ts:Date.now()-1000*60*60*60,sessionId:"seed",submissionCount:1,resolved:true,finalScore:79,category:"Tooling / Code"},
   {id:"seed_11",title:"Can your single-cell trajectory simulator be used unchanged for ecological population dynamics instead of cells?",ts:Date.now()-1000*60*60*72,sessionId:"seed",submissionCount:1,resolved:false,finalScore:48,category:"Out-of-Scope"},
   {id:"seed_12",title:"In your single-cell trajectory simulator, how do you prevent users from over-interpreting spurious bifurcations?",ts:Date.now()-1000*60*60*80,sessionId:"seed",submissionCount:1,resolved:true,finalScore:67,category:"Single-Cell"},
+  {id:"seed_13",title:"We have bulk RNA-seq from fibrotic vs healthy human hepatocytes (n=6/group). How do we identify the top 20 DEGs driving fibrosis and generate a publication-ready volcano plot?",ts:Date.now()-1000*60*60*90,sessionId:"seed",submissionCount:1,resolved:true,finalScore:81,category:"Real Lab · RNA-seq"},
+  {id:"seed_14",title:"Design a CRISPR screen to identify essential genes in macrophage polarization from M0 to M1. We have ~50M cells, no prior screen experience, budget for 1 sequencing run.",ts:Date.now()-1000*60*60*100,sessionId:"seed",submissionCount:1,resolved:true,finalScore:76,category:"Real Lab · CRISPR"},
+  {id:"seed_15",title:"We ran a 10x Chromium scRNA-seq experiment on mouse heart tissue (3 time points post-MI). How do we integrate the 3 datasets, remove batch effects, and identify fibroblast subclusters?",ts:Date.now()-1000*60*60*110,sessionId:"seed",submissionCount:1,resolved:true,finalScore:83,category:"Real Lab · Single-Cell"},
+  {id:"seed_16",title:"We want to improve statistical power for our RNA-seq study in cardiomyopathy patients. Currently n=8/group. What sample size do we actually need to detect a 1.5-fold change at 80% power?",ts:Date.now()-1000*60*60*120,sessionId:"seed",submissionCount:1,resolved:true,finalScore:79,category:"Real Lab · Stats"},
+  {id:"seed_17",title:"Design a macrophage co-culture assay to study cancer cell immune evasion. We have THP-1 cells and a HER2+ breast cancer line. What readouts and controls do we need?",ts:Date.now()-1000*60*60*130,sessionId:"seed",submissionCount:1,resolved:false,finalScore:72,category:"Real Lab · Protocol"},
 ];
 
 async function loadCommunityIndex(){
   try{
-    const r=await window.storage.get(CK_INDEX,true);
+    const r=localStorage.getItem(CK_INDEX);
     if(r){
-      const stored=JSON.parse(r.value)||[];
-      // Merge stored (user-submitted) with seeds — seeds go at the bottom if not already present
-      const storedIds=new Set(stored.map(x=>x.id));
-      const seedsToAdd=SEED_QUESTIONS.filter(s=>!storedIds.has(s.id));
+      const stored=JSON.parse(r)||[];
+      const storedIds=new Set(stored.map((x:any)=>x.id));
+      const seedsToAdd=SEED_QUESTIONS.filter((s:any)=>!storedIds.has(s.id));
       return [...stored,...seedsToAdd];
     }
-    // First ever load — show seeds so page is never empty
     return [...SEED_QUESTIONS];
   }catch{return [...SEED_QUESTIONS];}
 }
-async function saveCommunityIndex(list){
-  // Only save non-seed entries to storage (seeds are always injected at load time)
-  const toSave=list.filter(x=>!x.id.startsWith("seed_"));
-  try{await window.storage.set(CK_INDEX,JSON.stringify(toSave),true);}catch{}
+async function saveCommunityIndex(list:any){
+  const toSave=list.filter((x:any)=>!x.id.startsWith("seed_"));
+  try{localStorage.setItem(CK_INDEX,JSON.stringify(toSave));}catch{}
 }
-async function loadCommunityIters(qid){
-  try{const r=await window.storage.get(ck(qid),true);return r?JSON.parse(r.value):[];}catch{return[];}
+async function loadCommunityIters(qid:any){
+  try{const r=localStorage.getItem(ck(qid));return r?JSON.parse(r):[];}catch{return[];}
 }
-async function saveCommunityIters(qid,iters){
-  try{await window.storage.set(ck(qid),JSON.stringify(iters),true);}catch{}
+async function saveCommunityIters(qid:any,iters:any){
+  try{localStorage.setItem(ck(qid),JSON.stringify(iters));}catch{}
 }
 
 /* ═══════ COMMUNITY PAGE ═══════ */
@@ -1920,14 +1999,9 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
 
     while(round<MAX_ROUNDS){
       round++;
-      // Cooldown between rounds to reset the token-per-minute bucket
-      if(round>1){
-        setLivePhase("cooling down…");
-        await new Promise(r=>setTimeout(r,30000));
-      }
       setLiveRound(round);
       setLivePhase("debating");
-      const roundAgents=await runDebateRound(q,round,allRounds,ui,onAgentStatus,prevConsensus);
+      const roundAgents=await runDebateRound(enrichedQ,round,allRounds,ui,onAgentStatus,prevConsensus);
       setLivePhase("judging");
       const judgeResult=await judgeRound(enrichedQ,[...allRounds,{agents:roundAgents}],prevConsensus);
       setLiveScore(judgeResult.score);
@@ -1940,18 +2014,18 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     }
     const finalScore=allRounds[allRounds.length-1]?.judge?.score??0;
 
-    await new Promise(r=>setTimeout(r,8000));
     setLivePhase("consensus");
-    const finalConsensus=await buildFinalConsensus(q,allRounds,ui,true,prevConsensus);
+    await new Promise(r=>setTimeout(r,8000));
+    const finalConsensus=await buildFinalConsensus(enrichedQ,allRounds,ui,true,prevConsensus);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("plain");
-    const plainSummary=await buildPlainSummary(q,finalConsensus,ui,true,prevConsensus);
+    const plainSummary=await buildPlainSummary(enrichedQ,finalConsensus,ui,true,prevConsensus);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("conclusion");
-    const conclusion=await buildConclusion(q,allRounds,finalConsensus,ui,true);
+    const conclusion=await buildConclusion(enrichedQ,allRounds,finalConsensus,ui,true);
     await new Promise(r=>setTimeout(r,5000));
     setLivePhase("code");
-    const code=await generateCode(q,finalConsensus,ui);
+    const code=await generateCode(enrichedQ,finalConsensus,ui);
 
     const iteration={
       id:Date.now().toString(),ts:Date.now(),
@@ -1972,7 +2046,7 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     setMeta(prev=>prev?{...prev,submissionCount:updatedIters.length,resolved:true,finalScore}:prev);
 
     setUserInput("");setRunning(false);setLivePhase("done");
-},[q,userInput,running,iters,onAgentStatus]);
+  },[q,cqTitle,userInput,running,iters,onAgentStatus]);
 
   const activeIter=iters.length>0?[...iters].sort((a,b)=>b.ts-a.ts)[0]:null;
 
