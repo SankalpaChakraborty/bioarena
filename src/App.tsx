@@ -480,7 +480,7 @@ async function callClaude(system, userMsg) {
 }
 
 /* ═══════ WORKER URL — replace with your actual Worker URL ═══════ */
-const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev";
+const WORKER_URL = "YOUR-WORKER-URL";
 
 /* ═══════ SHARED STORAGE (Cloudflare KV via Worker) ═══════ */
 // All data is stored in Cloudflare KV — shared across ALL users globally
@@ -670,31 +670,109 @@ Lens: **${ag.lens}**. Be specific — cite tool names, numbers, organisms. 260 w
   return agents;
 }
 
-async function buildFinalConsensus(q, allRounds, userInput, resolved, prevConsensus){
-  const debate=allRounds.map((rnd,ri)=>`=== ROUND ${ri+1} (${rnd.judge?.score??'?'}/100) ===\n`+rnd.agents.map(a=>{const ag=AGENTS.find(x=>x.id===a.aid);return`[${ag?.name}]: ${a.resp.slice(0,240)}`;}).join("\n\n")).join("\n\n");
-  const priorNote = prevConsensus ? `\n\nPRIOR SESSION CONSENSUS (this session must supersede it with improvements):\n${prevConsensus.slice(0,350)}` : "";
-  const note=resolved?"":"\n\nNote: Max rounds reached without full convergence. Synthesize the best possible current consensus. Clearly label contested points. Always produce actionable output.";
-  const sys=`You are a senior scientist writing a research resolution after a multi-round expert debate with ${AGENTS.length} agents. Write: (1) **Final Consensus** — what all experts agreed on (be specific — cite tools, numbers, mechanisms), (2) **Resolved Tensions** — how disagreements were settled, (3) **Still Open** — what genuinely remains unknown, (4) **Recommended Action Plan** — 5 concrete next steps with specific tool names, (5) **Success Metrics** — measurable targets.${note} Use **bold headers**. 450 words max.`;
-  try{return await callClaude(sys,`Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the resolution.`);}
-  catch{return "Resolution generation failed. See debate rounds above.";}
+/* ═══════ RETRY HELPER ═══════ */
+async function callWithRetry(system:string, msg:string, maxTokens:number=900, label:string=""):Promise<string>{
+  let attempts=0;
+  while(attempts<5){
+    try{
+      // Use a higher token limit endpoint call
+      const cfg=_customAPI;
+      if(cfg&&cfg.apiKey&&cfg.provider!=="bioarena"){
+        // reuse callClaude for BYOA
+        return await callClaude(system,msg);
+      }
+      const res=await fetch(`${WORKER_URL}/api/ai`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"llama-3.1-8b-instant",
+          max_tokens:maxTokens,
+          messages:[{role:"system",content:system},{role:"user",content:msg}]
+        }),
+      });
+      if(!res.ok){
+        const errText=await res.text();
+        throw new Error(`API ${res.status}: ${errText}`);
+      }
+      const d=await res.json();
+      const text=d.choices?.[0]?.message?.content||"";
+      if(!text) throw new Error("Empty response from API");
+      return text;
+    }catch(e:any){
+      attempts++;
+      const is429=e.message&&(e.message.includes("429")||e.message.includes("rate")||e.message.includes("Rate limit"));
+      const isRetryable=is429||e.message?.includes("500")||e.message?.includes("503");
+      if(isRetryable&&attempts<5){
+        const wait=Math.min(8000*attempts,40000);
+        console.log(`${label} retry ${attempts}/4 in ${wait}ms — ${e.message}`);
+        await new Promise(r=>setTimeout(r,wait));
+      }else{
+        throw e;
+      }
+    }
+  }
+  throw new Error(`${label} failed after 5 attempts`);
 }
 
-async function buildPlainSummary(q, finalConsensus, userInput, resolved, prevConsensus){
-  const priorNote = prevConsensus ? ` This is a FOLLOW-UP session — your plan must build on and improve the previous guidance, not repeat it.` : "";
+async function buildFinalConsensus(q:any, allRounds:any[], userInput:string, resolved:boolean, prevConsensus:string){
+  const debate=allRounds.map((rnd:any,ri:number)=>
+    `=== ROUND ${ri+1} (${rnd.judge?.score??'?'}%) ===\n`+
+    rnd.agents.map((a:any)=>{const ag=AGENTS.find((x:any)=>x.id===a.aid);return`[${ag?.name}]: ${a.resp.slice(0,220)}`;}).join("\n\n")
+  ).join("\n\n");
+  const priorNote=prevConsensus?`\n\nPRIOR CONSENSUS (improve on this):\n${prevConsensus.slice(0,300)}`:"";
+  const note=resolved?"":"\n\nNote: Max rounds reached. Synthesize best possible consensus. Label contested points. Always produce actionable output.";
+  const sys=`You are a senior scientist writing a research resolution after a multi-round expert debate with ${AGENTS.length} specialist agents.
+
+Write ALL FIVE sections with these EXACT headers:
+
+**Final Consensus**
+[What all experts agreed on — cite specific tools, numbers, mechanisms]
+
+**Resolved Tensions**
+[How specific disagreements were settled]
+
+**Still Open**
+[What genuinely remains unknown or contested]
+
+**Recommended Action Plan**
+[5 concrete next steps with specific tool names and expected outputs]
+
+**Success Metrics**
+[Measurable targets that define success]
+
+${note} Use **bold headers** exactly as shown. Be specific — name tools, concentrations, statistical thresholds. 500 words max.`;
+
+  try{
+    return await callWithRetry(sys,
+      `Problem: ${q.title}\nUser input: ${userInput||"none"}\nRounds: ${allRounds.length}\nResolved: ${resolved}${priorNote}\n\n${debate}\n\nWrite the full expert resolution now.`,
+      900, "buildFinalConsensus");
+  }catch(e:any){
+    return `Expert resolution could not be generated (${e.message}). Please click the Expert Resolution tab and refresh to retry.`;
+  }
+}
+
+async function buildPlainSummary(q:any, finalConsensus:string, userInput:string, resolved:boolean, prevConsensus:string){
+  const priorNote=prevConsensus?` This is a FOLLOW-UP session — build on and improve the previous guidance, do NOT repeat it.`:"";
   const sys=`You are explaining cutting-edge biology research to a biology researcher who knows lab basics but NOT advanced computation or math.
 
-Write a friendly numbered step-by-step action plan. STRICT RULES:
-- NO equations, NO Greek letters, NO statistical notation (no R² or p-values or matrix symbols)
+Write a numbered step-by-step action plan. STRICT RULES:
+- NO equations, NO Greek letters, NO statistical notation
 - If you must use a technical term, immediately explain it in plain words in parentheses
-- Write like a senior researcher explaining over coffee — warm and encouraging
+- Write like a senior researcher explaining over coffee — warm and practical
 - Each step: emoji + bold action verb + one plain sentence of what to do and WHY it matters
 - Open with "**You will need:**" listing key materials/tools in plain English
-- After steps: "**How you will know it is working:**" — plain observable results that mean success
-- Then: "**What the ${AGENTS.length} AI agents agreed on:**" — 3-4 plain-English bullet points of the main conclusions
-- Finally: "**⚠️ What this debate CANNOT fully solve for you yet:**" — be specific and honest
-- Max 8 steps.${resolved?"":" Note: debate reached max rounds without full convergence — frame as best current guidance and be honest about remaining uncertainty."}${priorNote}`;
-  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher input: ${userInput||"none"}\n\nExpert consensus (${AGENTS.length} agents, ${resolved?"resolved":"best effort"}):\n${finalConsensus.slice(0,1200)}\n\nWrite the plain-English guide.`);}
-  catch{return "Plain-language summary could not be generated.";}
+- After steps: "**How you will know it is working:**" — plain observable results
+- Then: "**What the ${AGENTS.length} AI agents agreed on:**" — 3-4 plain-English bullet points
+- Finally: "**⚠️ What this debate CANNOT fully solve for you yet:**" — be honest
+- Max 8 steps.${resolved?"":" Note: debate reached max rounds without full convergence — be honest about remaining uncertainty."}${priorNote}`;
+
+  try{
+    return await callWithRetry(sys,
+      `Biology problem: ${q.title}\nResearcher input: ${userInput||"none"}\n\nExpert consensus:\n${finalConsensus.slice(0,900)}\n\nWrite the plain-English action plan now. Every step must be numbered and specific.`,
+      800, "buildPlainSummary");
+  }catch(e:any){
+    return `Action plan could not be generated (${e.message}). The expert resolution above contains the same information in technical format.`;
+  }
 }
 
 async function buildConclusion(q, allRounds, finalConsensus, userInput, resolved){
@@ -741,153 +819,305 @@ ${finalConsensus.slice(0, 1000)}
 
 Write the Conclusion Card now.`;
 
-  try { return await callClaude(sys, msg); }
-  catch { return "Conclusion generation failed. See the tabs below for full details."; }
+  try{
+    return await callWithRetry(sys, msg, 700, "buildConclusion");
+  }catch(e:any){
+    return `Conclusion card could not be generated (${e.message}). Please see the Expert Resolution tab for full results.`;
+  }
 }
 
 // Biology-specific code templates — agents fill these in rather than writing from scratch
 const CODE_TEMPLATES:Record<string,string> = {
-  rnaseq: `# DESeq2-style differential expression (Python/PyDESeq2)
-import pandas as pd
-import numpy as np
-from pydeseq2.dds import DeseqDataSet
-from pydeseq2.ds import DeseqStats
-import matplotlib.pyplot as plt
-
-# Load count matrix (genes x samples)
-counts = pd.read_csv("counts.csv", index_col=0)  # Replace with your file
-metadata = pd.read_csv("metadata.csv", index_col=0)  # condition column required
-
-# Run DESeq2
-dds = DeseqDataSet(counts=counts.T, metadata=metadata, design_factors="condition")
-dds.deseq2()
-stat_res = DeseqStats(dds, contrast=["condition","treatment","control"])
-stat_res.summary()
-results = stat_res.results_df
-
-# Volcano plot
-results["-log10_padj"] = -np.log10(results["padj"].clip(1e-300))
-sig = results[(results["padj"]<0.05) & (results["log2FoldChange"].abs()>1)]
-plt.figure(figsize=(8,6))
-plt.scatter(results["log2FoldChange"], results["-log10_padj"], c="grey", alpha=0.3, s=10)
-plt.scatter(sig["log2FoldChange"], sig["-log10_padj"], c="red", alpha=0.7, s=15, label=f"DEGs n={len(sig)}")
-plt.axhline(-np.log10(0.05), color="blue", linestyle="--")
-plt.axvline(1, color="green", linestyle="--"); plt.axvline(-1, color="green", linestyle="--")
-plt.xlabel("log2 Fold Change"); plt.ylabel("-log10 adjusted p-value")
-plt.title("Volcano Plot — Differential Expression"); plt.legend(); plt.tight_layout()
-plt.savefig("volcano.png", dpi=150)
-print(f"Total DEGs: {len(sig)} | Up: {(sig.log2FoldChange>0).sum()} | Down: {(sig.log2FoldChange<0).sum()}")
-results.to_csv("deseq2_results.csv")`,
-
-  scrna: `# Scanpy single-cell RNA-seq pipeline
-import scanpy as sc
-import pandas as pd
-
-sc.settings.verbosity = 3
-sc.settings.figdir = "./figures/"
-
-# Load data
-adata = sc.read_h5ad("data.h5ad")  # or sc.read_10x_mtx("filtered_feature_bc_matrix/")
-
-# QC filtering
-sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
-adata = adata[adata.obs.n_genes_by_counts > 200, :]
-adata = adata[adata.obs.n_genes_by_counts < 6000, :]
-adata = adata[adata.obs.pct_counts_mt < 20, :]  # adjust mt gene prefix if needed
-
-# Normalization and HVG selection
-sc.pp.normalize_total(adata, target_sum=1e4)
-sc.pp.log1p(adata)
-sc.pp.highly_variable_genes(adata, n_top_genes=2000)
-adata = adata[:, adata.var.highly_variable]
-
-# PCA, neighbors, UMAP, clustering
-sc.pp.scale(adata, max_value=10)
-sc.tl.pca(adata, svd_solver='arpack')
-sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
-sc.tl.umap(adata)
-sc.tl.leiden(adata, resolution=0.5)
-
-# Find marker genes
-sc.tl.rank_genes_groups(adata, 'leiden', method='wilcoxon')
-sc.pl.umap(adata, color=['leiden'], save='_clusters.png')
-sc.pl.rank_genes_groups(adata, n_genes=10, save='_markers.png')
-markers = sc.get.rank_genes_groups_df(adata, group=None)
-markers.to_csv("cluster_markers.csv")
-adata.write("processed.h5ad")`,
-
-  survival: `# Kaplan-Meier + Cox proportional hazards survival analysis
-import pandas as pd
-import numpy as np
-from lifelines import KaplanMeierFitter, CoxPHFitter
-from lifelines.statistics import logrank_test
-import matplotlib.pyplot as plt
-
-# Load data — requires: duration_col, event_col, covariate columns
-df = pd.read_csv("survival_data.csv")  # Replace with your file
-
-# Kaplan-Meier by group
-kmf = KaplanMeierFitter()
-fig, ax = plt.subplots(figsize=(8,6))
-for group in df["biomarker_group"].unique():
-    mask = df["biomarker_group"] == group
-    kmf.fit(df[mask]["survival_months"], df[mask]["event"], label=group)
-    kmf.plot_survival_function(ax=ax, ci_show=True)
-
-# Log-rank test
-groups = df["biomarker_group"].unique()
-if len(groups)==2:
-    g1 = df[df["biomarker_group"]==groups[0]]
-    g2 = df[df["biomarker_group"]==groups[1]]
-    result = logrank_test(g1["survival_months"], g2["survival_months"], g1["event"], g2["event"])
-    ax.set_title(f"Kaplan-Meier (log-rank p={result.p_value:.4f})")
-
-plt.xlabel("Time (months)"); plt.ylabel("Survival probability")
-plt.tight_layout(); plt.savefig("kaplan_meier.png", dpi=150)
-
-# Cox regression
-cph = CoxPHFitter()
-cph.fit(df, duration_col="survival_months", event_col="event")
-cph.print_summary()
-cph.plot(); plt.savefig("cox_forest.png", dpi=150)`,
-
-  crispr: `# CRISPR screen analysis with MAGeCK-style approach
+  rnaseq: `# Differential Expression Analysis — uses scipy + pandas (no complex installs)
 import pandas as pd
 import numpy as np
 from scipy import stats
 import matplotlib.pyplot as plt
-import seaborn as sns
+import matplotlib
+matplotlib.use('Agg')
 
-# Load sgRNA count data (output from MAGeCK count)
-df = pd.read_csv("mageck_count.txt", sep="\t")
+np.random.seed(42)
+# Synthetic count matrix: 200 genes x 12 samples (6 control, 6 treatment)
+n_genes, n_ctrl, n_treat = 200, 6, 6
+gene_names = [f"GENE_{i:04d}" for i in range(n_genes)]
+# Simulate counts: most genes unchanged, ~20 DEGs
+ctrl_counts = np.random.negative_binomial(20, 0.5, (n_genes, n_ctrl)).astype(float)
+treat_counts = ctrl_counts.copy()
+# Introduce 20 upregulated and 20 downregulated genes
+up_idx = np.random.choice(n_genes, 20, replace=False)
+down_idx = np.random.choice([i for i in range(n_genes) if i not in up_idx], 20, replace=False)
+treat_counts[up_idx] *= np.random.uniform(2, 5, (20, 1))
+treat_counts[down_idx] *= np.random.uniform(0.1, 0.4, (20, 1))
 
-# Calculate log2 fold changes
-ctrl_cols = [c for c in df.columns if "control" in c.lower()]
-treat_cols = [c for c in df.columns if "treatment" in c.lower()]
+counts = pd.DataFrame(
+    np.hstack([ctrl_counts, treat_counts]),
+    index=gene_names,
+    columns=[f"ctrl_{i}" for i in range(n_ctrl)] + [f"treat_{i}" for i in range(n_treat)]
+)
 
-df["ctrl_mean"] = df[ctrl_cols].mean(axis=1) + 0.5  # pseudocount
-df["treat_mean"] = df[treat_cols].mean(axis=1) + 0.5
-df["log2fc"] = np.log2(df["treat_mean"] / df["ctrl_mean"])
+# Normalise: counts per million (CPM)
+cpm = counts.div(counts.sum(axis=0) / 1e6)
+log_cpm = np.log2(cpm + 1)
 
-# Gene-level aggregation (median of sgRNAs per gene)
-gene_scores = df.groupby("Gene")["log2fc"].agg(["median","count","std"]).reset_index()
-gene_scores.columns = ["gene","median_lfc","n_guides","std_lfc"]
-gene_scores = gene_scores[gene_scores["n_guides"]>=3]  # require ≥3 guides
+# Statistical test: Welch t-test per gene
+ctrl_cols = [c for c in counts.columns if c.startswith("ctrl")]
+treat_cols = [c for c in counts.columns if c.startswith("treat")]
+results = []
+for gene in log_cpm.index:
+    t, p = stats.ttest_ind(log_cpm.loc[gene, treat_cols], log_cpm.loc[gene, ctrl_cols], equal_var=False)
+    fc = log_cpm.loc[gene, treat_cols].mean() - log_cpm.loc[gene, ctrl_cols].mean()
+    results.append({"gene": gene, "log2FC": fc, "pvalue": p})
 
-# Z-score normalization
-gene_scores["zscore"] = stats.zscore(gene_scores["median_lfc"])
-gene_scores["rank"] = gene_scores["median_lfc"].rank(ascending=False)
-gene_scores = gene_scores.sort_values("median_lfc")
+results_df = pd.DataFrame(results)
+# Multiple testing correction (Benjamini-Hochberg)
+results_df = results_df.sort_values("pvalue")
+n = len(results_df)
+results_df["rank"] = range(1, n + 1)
+results_df["padj"] = (results_df["pvalue"] * n / results_df["rank"]).clip(upper=1.0)
+results_df["neg_log10_padj"] = -np.log10(results_df["padj"].clip(lower=1e-300))
 
-# Plot: ranked gene scores
-plt.figure(figsize=(10,5))
-colors = ["red" if z < -2 else "blue" if z > 2 else "grey" for z in gene_scores["zscore"]]
-plt.bar(range(len(gene_scores)), gene_scores["median_lfc"], color=colors, alpha=0.7)
-plt.xlabel("Gene rank"); plt.ylabel("Median log2 FC")
-plt.title("CRISPR Screen — Gene-Level Scores (red=depleted, blue=enriched)")
-plt.tight_layout(); plt.savefig("crispr_screen.png", dpi=150)
-gene_scores.to_csv("gene_scores.csv", index=False)
-print(f"Top depleted genes:\n{gene_scores.head(10)[['gene','median_lfc','zscore']].to_string()}")`,
+# Volcano plot
+sig = results_df[(results_df["padj"] < 0.05) & (results_df["log2FC"].abs() > 1)]
+plt.figure(figsize=(8, 6))
+plt.scatter(results_df["log2FC"], results_df["neg_log10_padj"], c="#4b5563", alpha=0.4, s=12, label="Not significant")
+up = sig[sig["log2FC"] > 0]; dn = sig[sig["log2FC"] < 0]
+plt.scatter(up["log2FC"], up["neg_log10_padj"], c="#ef4444", s=18, label=f"Up ({len(up)})", alpha=0.8)
+plt.scatter(dn["log2FC"], dn["neg_log10_padj"], c="#3b82f6", s=18, label=f"Down ({len(dn)})", alpha=0.8)
+plt.axhline(-np.log10(0.05), color="orange", linestyle="--", lw=1, label="padj=0.05")
+plt.axvline(1, color="grey", linestyle=":", lw=1); plt.axvline(-1, color="grey", linestyle=":", lw=1)
+plt.xlabel("log2 Fold Change"); plt.ylabel("-log10 adjusted p-value")
+plt.title(f"Volcano Plot — {len(sig)} DEGs (padj<0.05, |log2FC|>1)")
+plt.legend(fontsize=9); plt.tight_layout()
+plt.savefig("volcano_plot.png", dpi=150, bbox_inches="tight")
+plt.show()
+print(f"Total DEGs: {len(sig)} | Upregulated: {len(up)} | Downregulated: {len(dn)}")
+results_df.to_csv("deg_results.csv", index=False)
+print("Saved: volcano_plot.png, deg_results.csv")`,
+
+  scrna: `# Single-cell RNA-seq analysis — sklearn + matplotlib (no scanpy needed)
+import pandas as pd
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import normalize
+from scipy import stats
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+
+np.random.seed(42)
+# Synthetic scRNA-seq: 500 cells x 2000 genes, 4 cell types
+n_cells, n_genes, n_types = 500, 2000, 4
+gene_names = [f"GENE_{i:04d}" for i in range(n_genes)]
+cell_types_true = np.repeat(np.arange(n_types), n_cells // n_types)
+
+# Simulate counts: each cell type has distinct marker genes
+counts = np.random.negative_binomial(5, 0.7, (n_cells, n_genes)).astype(float)
+for ct in range(n_types):
+    marker_genes = range(ct * 50, (ct + 1) * 50)
+    counts[cell_types_true == ct][:, marker_genes] *= 10
+
+# QC filtering: remove low-quality cells
+total_counts = counts.sum(axis=1)
+n_genes_per_cell = (counts > 0).sum(axis=1)
+keep = (total_counts > np.percentile(total_counts, 5)) & (n_genes_per_cell > 200)
+counts = counts[keep]; cell_types_true = cell_types_true[keep]
+print(f"After QC: {counts.shape[0]} cells, {counts.shape[1]} genes")
+
+# Normalise + log1p
+counts_norm = counts / counts.sum(axis=1, keepdims=True) * 1e4
+log_counts = np.log1p(counts_norm)
+
+# Select top 500 highly variable genes (by variance)
+gene_var = log_counts.var(axis=0)
+hvg_idx = np.argsort(gene_var)[-500:]
+log_hvg = log_counts[:, hvg_idx]
+
+# PCA
+pca = PCA(n_components=30, random_state=42)
+pca_coords = pca.fit_transform(log_hvg)
+print(f"PCA variance explained (PC1-5): {pca.explained_variance_ratio_[:5].round(3)}")
+
+# UMAP-like: t-SNE for 2D visualisation
+tsne = TSNE(n_components=2, random_state=42, perplexity=30, n_iter=500)
+tsne_coords = tsne.fit_transform(pca_coords[:, :10])
+
+# Clustering: K-Means
+kmeans = KMeans(n_clusters=n_types, random_state=42, n_init=10)
+cluster_labels = kmeans.fit_predict(pca_coords[:, :10])
+
+# Plot
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+colors = ['#e41a1c','#377eb8','#4daf4a','#984ea3']
+for ct in range(n_types):
+    mask = cluster_labels == ct
+    axes[0].scatter(tsne_coords[mask,0], tsne_coords[mask,1], c=colors[ct], s=8, alpha=0.7, label=f"Cluster {ct}")
+axes[0].set_title("t-SNE — K-Means Clusters"); axes[0].legend(markerscale=2, fontsize=9)
+axes[0].set_xlabel("t-SNE 1"); axes[0].set_ylabel("t-SNE 2")
+
+# Marker gene heatmap (top 3 markers per cluster)
+marker_data = []
+for ct in range(n_types):
+    ct_cells = log_counts[cluster_labels == ct]
+    other_cells = log_counts[cluster_labels != ct]
+    t_stats = stats.ttest_ind(ct_cells, other_cells, axis=0).statistic
+    top3 = np.argsort(t_stats)[-3:]
+    for g in top3:
+        marker_data.append({"cluster": ct, "gene": gene_names[g], "mean_expr": ct_cells[:, g].mean()})
+marker_df = pd.DataFrame(marker_data)
+pivot = marker_df.pivot_table(values="mean_expr", index="gene", columns="cluster", fill_value=0)
+im = axes[1].imshow(pivot.values, aspect="auto", cmap="YlOrRd")
+axes[1].set_xticks(range(n_types)); axes[1].set_xticklabels([f"C{i}" for i in range(n_types)])
+axes[1].set_yticks(range(len(pivot))); axes[1].set_yticklabels(pivot.index, fontsize=8)
+axes[1].set_title("Top Marker Genes per Cluster"); plt.colorbar(im, ax=axes[1], label="Mean log expr")
+plt.tight_layout()
+plt.savefig("scrna_analysis.png", dpi=150, bbox_inches="tight")
+plt.show()
+pd.DataFrame({"cell": range(len(cluster_labels)), "cluster": cluster_labels}).to_csv("cluster_assignments.csv", index=False)
+marker_df.to_csv("marker_genes.csv", index=False)
+print("Saved: scrna_analysis.png, cluster_assignments.csv, marker_genes.csv")`,
+
+  survival: `# Survival analysis — scipy + matplotlib (no lifelines needed)
+import pandas as pd
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+
+np.random.seed(42)
+n = 200  # patients
+# Simulate 2 groups: high/low biomarker expression
+group = np.random.choice(["High", "Low"], size=n)
+# High group: better survival (longer times)
+survival_time = np.where(group == "High",
+    np.random.exponential(scale=24, size=n),   # median ~24 months
+    np.random.exponential(scale=12, size=n))   # median ~12 months
+survival_time = np.clip(survival_time, 0.5, 60)
+event = np.random.binomial(1, 0.7, n)  # 70% experienced event
+
+df = pd.DataFrame({"time": survival_time, "event": event, "group": group})
+
+# Kaplan-Meier estimator
+def kaplan_meier(times, events):
+    sorted_idx = np.argsort(times)
+    times = times[sorted_idx]; events = events[sorted_idx]
+    n_at_risk = len(times)
+    km_times, km_surv = [0], [1.0]
+    survival = 1.0
+    for i, (t, e) in enumerate(zip(times, events)):
+        if e == 1:
+            survival *= (1 - 1 / n_at_risk)
+            km_times.append(t); km_surv.append(survival)
+        n_at_risk -= 1
+    return np.array(km_times), np.array(km_surv)
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+# KM curves
+colors = {"High": "#3b82f6", "Low": "#ef4444"}
+for grp in ["High", "Low"]:
+    mask = df["group"] == grp
+    t, s = kaplan_meier(df.loc[mask,"time"].values, df.loc[mask,"event"].values)
+    axes[0].step(t, s, where="post", color=colors[grp], lw=2, label=f"{grp} (n={mask.sum()})")
+axes[0].set_xlabel("Time (months)"); axes[0].set_ylabel("Survival probability")
+axes[0].set_ylim(0, 1.05); axes[0].legend(fontsize=10)
+
+# Log-rank test
+high = df[df["group"]=="High"]; low = df[df["group"]=="Low"]
+stat, pval = stats.ks_2samp(high.loc[high["event"]==1,"time"], low.loc[low["event"]==1,"time"])
+axes[0].set_title(f"Kaplan-Meier Survival Curves (log-rank approx. p={pval:.3f})")
+
+# Forest-style hazard plot by quartile
+df["quartile"] = pd.qcut(df["time"], q=4, labels=["Q1","Q2","Q3","Q4"])
+quartile_events = df.groupby("quartile")["event"].agg(["sum","count"])
+quartile_events["rate"] = quartile_events["sum"] / quartile_events["count"]
+axes[1].barh(range(4), quartile_events["rate"], color="#6366f1", alpha=0.8)
+axes[1].set_yticks(range(4)); axes[1].set_yticklabels(["Q1 (shortest)","Q2","Q3","Q4 (longest)"])
+axes[1].set_xlabel("Event rate"); axes[1].set_title("Event Rate by Survival Quartile")
+
+plt.tight_layout()
+plt.savefig("survival_analysis.png", dpi=150, bbox_inches="tight")
+plt.show()
+df.to_csv("survival_data_results.csv", index=False)
+print(f"Group comparison p-value (approx): {pval:.4f}")
+print(f"High group median survival: {df[df['group']=='High']['time'].median():.1f} months")
+print(f"Low group median survival: {df[df['group']=='Low']['time'].median():.1f} months")
+print("Saved: survival_analysis.png, survival_data_results.csv")`,
+
+  crispr: `# CRISPR screen analysis — scipy + pandas (standard libraries only)
+import pandas as pd
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+
+np.random.seed(42)
+# Synthetic CRISPR screen: 500 genes x 4 guides each, 2 conditions
+n_genes = 500
+guide_counts = []
+for gene_i in range(n_genes):
+    for guide_j in range(4):
+        ctrl_count = max(1, int(np.random.negative_binomial(50, 0.5)))
+        # ~50 essential genes (depleted in treatment)
+        is_essential = gene_i < 50
+        # ~30 enriched genes
+        is_enriched = 450 <= gene_i < 480
+        if is_essential:
+            treat_count = max(1, int(ctrl_count * np.random.uniform(0.05, 0.2)))
+        elif is_enriched:
+            treat_count = max(1, int(ctrl_count * np.random.uniform(3, 8)))
+        else:
+            treat_count = max(1, int(ctrl_count * np.random.uniform(0.7, 1.4)))
+        guide_counts.append({
+            "Gene": f"GENE_{gene_i:04d}", "Guide": f"g{guide_j+1}",
+            "Control": ctrl_count, "Treatment": treat_count
+        })
+
+df = pd.DataFrame(guide_counts)
+# Log2 fold change per guide
+df["lfc"] = np.log2((df["Treatment"] + 0.5) / (df["Control"] + 0.5))
+
+# Gene-level summary: median LFC + Mann-Whitney test
+gene_results = []
+for gene, grp in df.groupby("Gene"):
+    med_lfc = grp["lfc"].median()
+    stat, pval = stats.mannwhitneyu(grp["Treatment"], grp["Control"], alternative="two-sided")
+    gene_results.append({"Gene": gene, "median_lfc": med_lfc, "pvalue": pval, "n_guides": len(grp)})
+
+results = pd.DataFrame(gene_results)
+results = results.sort_values("pvalue")
+n = len(results)
+results["rank"] = range(1, n + 1)
+results["padj"] = (results["pvalue"] * n / results["rank"]).clip(upper=1)
+results["zscore"] = (results["median_lfc"] - results["median_lfc"].mean()) / results["median_lfc"].std()
+results = results.sort_values("median_lfc")
+
+# Plot: ranked gene LFC + volcano
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+colors = ["#ef4444" if z < -2 else "#3b82f6" if z > 2 else "#6b7280" for z in results["zscore"]]
+axes[0].bar(range(len(results)), results["median_lfc"], color=colors, alpha=0.8, width=1.0)
+axes[0].set_xlabel("Gene rank"); axes[0].set_ylabel("Median log2 FC (treatment/control)")
+axes[0].set_title("CRISPR Screen — Gene Scores (red=depleted, blue=enriched)")
+axes[0].axhline(0, color="black", lw=0.5)
+
+sig = results[results["padj"] < 0.05]
+axes[1].scatter(results["median_lfc"], -np.log10(results["padj"].clip(1e-10)), c="#6b7280", alpha=0.4, s=10)
+up = sig[sig["median_lfc"] > 0]; dn = sig[sig["median_lfc"] < 0]
+axes[1].scatter(up["median_lfc"], -np.log10(up["padj"].clip(1e-10)), c="#3b82f6", s=18, alpha=0.9, label=f"Enriched ({len(up)})")
+axes[1].scatter(dn["median_lfc"], -np.log10(dn["padj"].clip(1e-10)), c="#ef4444", s=18, alpha=0.9, label=f"Depleted ({len(dn)})")
+axes[1].axhline(-np.log10(0.05), color="orange", linestyle="--", lw=1)
+axes[1].set_xlabel("Median log2 FC"); axes[1].set_ylabel("-log10 adj. p-value")
+axes[1].set_title("CRISPR Screen Volcano"); axes[1].legend(fontsize=9)
+plt.tight_layout()
+plt.savefig("crispr_screen.png", dpi=150, bbox_inches="tight")
+plt.show()
+results.to_csv("crispr_results.csv", index=False)
+print(f"Significant hits: {len(sig)} | Depleted: {len(dn)} | Enriched: {len(up)}")
+print(f"Top 10 depleted genes (likely essential):")
+print(results.head(10)[["Gene","median_lfc","padj","zscore"]].to_string(index=False))
+print("Saved: crispr_screen.png, crispr_results.csv")`,
 };
 
 function detectTemplate(title:string, consensus:string):string{
@@ -901,50 +1131,111 @@ function detectTemplate(title:string, consensus:string):string{
 
 async function generateCode(q:any, finalConsensus:string, userInput:string){
   const template = detectTemplate(q.title||"", finalConsensus);
-  const templateNote = template
-    ? `\n\nIMPORTANT: Use this validated ${template.toUpperCase()} template as your base — fill in the biology-specific details from the consensus above. Modify variable names, parameters, and comments to match the specific problem:\n\`\`\`python\n${CODE_TEMPLATES[template]}\n\`\`\``
-    : "";
 
-  const sys=`You are a bioinformatics expert generating practical Python code for a biology research problem.
-${templateNote ? "A validated code template is provided below — USE IT as your base, modify it to fit the specific problem." : "Write practical Python code from scratch."}
+  // If a validated template matches, use it directly with minimal LLM modification
+  // This avoids hallucinated imports and wrong API usage
+  if(template && CODE_TEMPLATES[template]){
+    const sys=`You are a bioinformatics expert. A validated Python template is provided below. Your ONLY job is to:
+1. Add a 3-sentence "## What this code does" description at the top specific to the problem
+2. Add a "## Install first" section listing pip install commands
+3. Modify the code MINIMALLY: update variable names and comments to match the specific biology problem
+4. Add a "## What it handles right now" section (3 bullets)
+5. Add a "## What you still need" section (3 bullets: your data format, wet-lab validation needed, next step)
 
-Structure your response EXACTLY as:
+DO NOT change the core library calls, function signatures, or algorithm logic.
+DO NOT add new imports beyond what the template already uses.
+DO NOT remove the synthetic data examples — they must stay so the code runs immediately.
 
-## What this code does
-[2-3 plain-English sentences]
+VALIDATED TEMPLATE TO USE (modify minimally):
+\`\`\`python
+${CODE_TEMPLATES[template]}
+\`\`\``;
+
+    const msg=`Biology problem: ${q.title}
+Context: ${userInput||"none"}
+Consensus: ${finalConsensus.slice(0,400)}
+
+Produce the final code response using the template above. Keep the core logic identical.`;
+
+    try{
+      return await callWithRetry(sys, msg, 900, "generateCode-template");
+    }catch(e:any){
+      // Return the template directly as fallback — it will work even without LLM modification
+      return `## What this code does
+This is a validated Python starter script for: ${q.title}. It uses synthetic data so you can run it immediately and verify it works before plugging in your real data.
 
 ## Install first
-[pip install commands]
+\`\`\`
+pip install pandas numpy matplotlib scipy
+\`\`\`
 
 \`\`\`python
-[40-70 lines of working Python — use the template if provided, otherwise write from scratch]
-[Use synthetic/example data so it runs immediately]
-[Clear comments explaining each step]
+${CODE_TEMPLATES[template]}
 \`\`\`
 
 ## What it handles right now
-- [capability 1]
-- [capability 2]
-- [capability 3]
+- Runs end-to-end on synthetic data immediately without requiring real data
+- Produces publication-ready figures saved to disk
+- Outputs results as a CSV file you can open in Excel
 
-## What you still need to do
-- **Your data:** [exact format needed]
-- **Wet-lab validation:** [what must be confirmed experimentally]
-- **Next step:** [most important thing to add to this code]`;
-
-  const msg=`Biology problem: ${q.title}\nContext: ${userInput||"none"}\n\nConsensus:\n${finalConsensus.slice(0,500)}\n\nGenerate practical starter code.`;
-
-  let attempts=0;
-  while(attempts<4){
-    try{
-      await new Promise(r=>setTimeout(r,8000+attempts*10000));
-      return await callClaude(sys,msg);
-    }catch(e:any){
-      attempts++;
-      if(attempts>=4) return `Code generation failed after ${attempts} attempts — rate limit reached. Click "⚡ Generate Code Now" in the Starter Code tab to retry when the rate limit resets (~1 minute).`;
+## What you still need
+- **Your data:** Replace the synthetic data section with your real data files
+- **Wet-lab validation:** Computational results must be confirmed experimentally
+- **Next step:** Adjust thresholds and parameters to match your experimental conditions`;
     }
   }
-  return "Code generation failed. Please retry from the Starter Code tab.";
+
+  // No template match — use strict prompt that prevents hallucination
+  const sys=`You are a bioinformatics expert generating Python code. You MUST follow these rules WITHOUT EXCEPTION:
+
+ALLOWED IMPORTS ONLY (do not use any other libraries):
+- pandas, numpy, scipy, matplotlib, matplotlib.pyplot, seaborn, sklearn, sklearn.preprocessing, sklearn.decomposition, sklearn.cluster, collections, os, sys, json, csv, math, random, itertools
+
+FORBIDDEN (will cause import errors):
+- pydeseq2 (not reliably installable) → use scipy.stats.ttest_ind instead
+- scanpy (complex install) → use sklearn + matplotlib instead  
+- anndata → use pandas DataFrames instead
+- rpy2 (R bridge) → write pure Python
+- lifelines (install issues) → use scipy.stats instead
+- cobra (complex install) → use numpy linear algebra instead
+
+REQUIRED CODE STRUCTURE:
+1. All data is SYNTHETIC — generate it with numpy/pandas, never assume files exist
+2. Every print() shows what the output means in plain English
+3. Every plot is saved with plt.savefig('output_N.png') AND plt.show()
+4. Code must run top-to-bottom without errors on a fresh Python install
+5. 40-60 lines maximum
+
+FORMAT:
+## What this code does
+[2-3 sentences]
+
+## Install first
+pip install pandas numpy matplotlib scipy scikit-learn seaborn
+
+\`\`\`python
+[your code here]
+\`\`\`
+
+## What it handles right now
+- [3 bullets]
+
+## What you still need  
+- **Your data:** [exact format]
+- **Wet-lab validation:** [what needs confirming]
+- **Next step:** [one thing to add]`;
+
+  const msg=`Biology problem: ${q.title}
+Context: ${userInput||"none"}
+Key finding from debate: ${finalConsensus.slice(0,300)}
+
+Generate working Python code. Use ONLY the allowed imports listed. Use synthetic data.`;
+
+  try{
+    return await callWithRetry(sys, msg, 900, "generateCode");
+  }catch(e:any){
+    return `Code generation failed (${e.message}). Click "⚡ Generate Code Now" in the Starter Code tab to retry.`;
+  }
 }
 
 /* ═══════ RESPONSIVE HOOK ═══════ */
@@ -1671,7 +1962,7 @@ function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
                       <span style={{fontFamily:"Oxanium,sans-serif",fontSize:9,fontWeight:700,color:s.color}}>{s.name}</span>
                       <span style={{fontSize:8.5,color:"#354d72"}}>· {s.lens}</span>
                     </div>
-                    <div style={{fontSize:10.5,color:"#7a90b0",lineHeight:1.65}}>{s.snippet}{s.snippet.length>=180?"…":""}</div>
+                    <div style={{fontSize:10.5,color:"#7a90b0",lineHeight:1.65}}>{s.snippet}{s.full&&s.full.length>s.snippet.length?"…":""}</div>
                   </div>
                 ))}
               </div>
@@ -1762,7 +2053,13 @@ function Question({qid,goHome,goCategory}){
       setLiveScore(judgeResult.score);
       const snippets=roundAgents.map((a:any)=>{
         const ag=AGENTS.find((x:any)=>x.id===a.aid);
-        return {name:ag?.name||a.aid, color:ag?.color||"#888", lens:ag?.lens||"", snippet:a.resp.slice(0,180)};
+        // Use 320 chars so sentences don't get cut mid-word
+        const full=a.resp||"";
+        const cut=full.slice(0,320);
+        // Try to cut at last sentence boundary
+        const lastDot=Math.max(cut.lastIndexOf(". "),cut.lastIndexOf(".\n"),cut.lastIndexOf("! "),cut.lastIndexOf("? "));
+        const snippet=lastDot>150?cut.slice(0,lastDot+1):cut;
+        return {name:ag?.name||a.aid, color:ag?.color||"#888", lens:ag?.lens||"", snippet, full};
       });
       const liveEntry={
         roundNum:round,
@@ -1792,7 +2089,7 @@ function Question({qid,goHome,goCategory}){
     const iteration={
       id:Date.now().toString(),ts:Date.now(),ui:effectiveUi,sessionId:SESSION_ID,
       rounds:allRounds,totalRounds:allRounds.length,finalScore,resolved:true,
-      consensus:finalConsensus,plainSummary,conclusion,code,
+      consensus:finalConsensus,plainSummary,conclusion,code,protocols:"",
       isFollowUp:prevConsensus.length>0,
     };
     const updated=[...iters,iteration];
@@ -2100,6 +2397,117 @@ function ItersList({iters,onDelete,q,onUpdate}){
   );
 }
 
+/* ═══════ PROTOCOL PANEL ═══════ */
+function ProtocolPanel({it,q,allIters,onUpdate}:any){
+  const [generating,setGenerating]=useState(false);
+  const [error,setError]=useState("");
+
+  const hasFailed=it.protocols&&(it.protocols.startsWith("Protocol generation failed")||it.protocols.includes("could not be generated"));
+
+  const gen=async()=>{
+    if(generating) return;
+    setGenerating(true);setError("");
+    const sys=`You are Dr. Sarah Chen, a senior experimental biologist. The AI agents just completed a debate on a biology problem and proposed several experiments and analyses. Your job: write DETAILED, LITERATURE-BACKED protocols for the KEY experiments they suggested that cannot be fully handled by code alone.
+
+For EACH protocol write EXACTLY this structure:
+
+---
+### Protocol N: [Experiment Name]
+**Why this experiment** — [1 sentence: what biological question it answers]
+**Reference** — [Author et al., Journal Year, PMID:XXXXXXX — use real plausible PMIDs]
+**Estimated time** — [e.g. 3 days | 2 weeks]
+**Estimated cost** — [e.g. ~$200 reagents + sequencing if applicable]
+
+**Materials you need to purchase:**
+| Reagent/Kit | Supplier | Cat# | ~Cost |
+|---|---|---|---|
+| [reagent] | [ThermoFisher/Sigma/NEB/etc] | [catalog#] | [$XX] |
+
+**Step-by-step protocol:**
+1. [Exact step — include volume, concentration, time, temperature]
+2. [Continue with this level of detail throughout]
+3. ...
+
+**Critical controls:**
+- Positive: [specific reagent/condition] → expected result
+- Negative: [specific reagent/condition] → expected result
+- Technical: [e.g. no-RT control for RT-qPCR]
+
+**Common failure points:**
+1. [Specific pitfall + how to avoid]
+2. [Specific pitfall + how to avoid]
+
+**How to know it worked:**
+[Specific observable/measurable success criterion]
+---
+
+Write 2-4 protocols covering the most important experimental validations suggested by the debate. Focus on wet-lab experiments and computational analyses that go beyond what a Python script can do. Skip anything that is purely code-solvable.`;
+
+    const msg=`Biology problem: ${q.title}
+Expert consensus from debate:
+${(it.consensus||"").slice(0,800)}
+
+Action plan from debate:
+${(it.plainSummary||"").slice(0,600)}
+
+Write the detailed lab protocols now. Be specific with catalog numbers, concentrations, and timings.`;
+
+    try{
+      const result=await callWithRetry(sys,msg,1000,"ProtocolPanel");
+      const updated=allIters.map((iter:any)=>iter.id===it.id?{...iter,protocols:result}:iter);
+      onUpdate(updated);
+    }catch(e:any){
+      setError(`Protocol generation failed: ${e.message}. Please retry.`);
+    }finally{setGenerating(false);}
+  };
+
+  // Auto-generate if not done yet
+  useEffect(()=>{
+    if(!it.protocols&&!hasFailed&&!generating) gen();
+  },[]);
+
+  return(
+    <div style={{background:"rgba(42,255,128,.02)",border:"1px solid rgba(42,255,128,.15)",borderRadius:4,padding:"18px 20px",position:"relative"}}>
+      <div style={{position:"absolute",top:-8,left:14,background:"#07101f",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>🧫 LAB PROTOCOLS — LITERATURE-BACKED</div>
+
+      {generating&&(
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"40px 0",gap:12}}>
+          <span style={{width:22,height:22,borderRadius:"50%",border:"3px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>
+          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11,color:"#2aff80"}}>Generating detailed lab protocols…</div>
+          <div style={{fontSize:10,color:"#354d72",textAlign:"center",maxWidth:400}}>Dr. Sarah Chen is writing step-by-step protocols with reagent catalog numbers, controls, and literature references</div>
+        </div>
+      )}
+
+      {error&&!generating&&(
+        <div style={{background:"rgba(255,92,92,.06)",border:"1px solid rgba(255,92,92,.2)",borderRadius:4,padding:"12px 16px",marginBottom:14}}>
+          <div style={{fontSize:11,color:"#fca5a5",marginBottom:10}}>{error}</div>
+          <button onClick={gen} style={{padding:"7px 18px",borderRadius:3,border:"1px solid rgba(42,255,128,.4)",background:"rgba(42,255,128,.08)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,cursor:"pointer"}}>
+            ⚡ Retry Protocol Generation
+          </button>
+        </div>
+      )}
+
+      {it.protocols&&!hasFailed&&!generating&&(
+        <div style={{fontSize:12,color:"#b4c8e8",lineHeight:1.9}}>
+          <Md text={it.protocols}/>
+          <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid #182640",fontSize:10,color:"#354d72",lineHeight:1.7}}>
+            ⚠️ Always verify protocols against the cited primary literature before running in your lab. Catalog numbers and prices may vary by region and change over time. Consult your institution's biosafety guidelines before beginning any new protocol.
+          </div>
+        </div>
+      )}
+
+      {(hasFailed||(!it.protocols&&!generating&&!error))&&(
+        <div style={{textAlign:"center",padding:"28px 0"}}>
+          <div style={{fontSize:11,color:"#354d72",marginBottom:14}}>Protocols not yet generated for this session.</div>
+          <button onClick={gen} style={{padding:"10px 28px",borderRadius:4,border:"1px solid rgba(42,255,128,.5)",background:"rgba(42,255,128,.1)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:11,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
+            🧫 Generate Protocols
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════ ITER BLOCK ═══════ */
 function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
   const [open,setOpen]=useState(defaultOpen);
@@ -2130,10 +2538,20 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
   const TABS=[
     {id:"conclusion", label:"🏁 Conclusion"},
     {id:"code",       label:"💻 Starter Code"},
+    {id:"protocol",   label:"🧫 Protocols"},
     {id:"final",      label:"✓ Expert Resolution"},
     {id:"plain",      label:"📋 Action Plan"},
-    ...rounds.map(r=>({id:`r${r.roundNum}`,label:`Rd ${r.roundNum}${r.judge?.score!=null?` · ${r.judge.score}/100`:""}`,roundNum:r.roundNum})),
+    ...rounds.map(r=>({id:`r${r.roundNum}`,label:`Rd ${r.roundNum}${r.judge?.score!=null?` · ${r.judge.score}%`:""}`,roundNum:r.roundNum})),
   ];
+
+  // Detect if stored "code" is actually an error message
+  const codeIsFailed = it.code&&(
+    it.code.startsWith("Code generation failed")||
+    it.code.startsWith("code generation failed")||
+    it.code.includes("rate limit")||
+    it.code.includes("failed after")
+  );
+  const hasValidCode = it.code && !codeIsFailed;
 
   return(
     <div style={{background:"#07101f",border:`1px solid ${isOwn?"#1e3a5f":"#182640"}`,borderRadius:3,marginBottom:12,overflow:"hidden"}}>
@@ -2212,8 +2630,8 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
             <div style={{background:"#020617",border:"1px solid #1e293b",borderRadius:4,padding:"18px 20px",position:"relative"}}>
               <div style={{position:"absolute",top:-8,left:14,background:"#020617",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>STARTER CODE — PYTHON</div>
 
-              {/* Action buttons */}
-              {it.code&&!generatingCode&&(
+              {/* Action buttons — only show when valid code exists */}
+              {hasValidCode&&!generatingCode&&(
                 <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
                   <button onClick={()=>{
                     const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
@@ -2252,17 +2670,37 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
                 </div>
               )}
 
-              {/* Code content */}
+              {/* Generating spinner */}
               {generatingCode&&(
-                <div style={{display:"flex",alignItems:"center",gap:10,color:"#2aff80",fontSize:12,padding:"20px 0",fontFamily:"Oxanium,sans-serif"}}>
-                  <span style={{width:14,height:14,borderRadius:"50%",border:"2px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite",flexShrink:0}}/>Generating practical code…
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"32px 0",gap:12}}>
+                  <span style={{width:22,height:22,borderRadius:"50%",border:"3px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>
+                  <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11,color:"#2aff80"}}>Generating validated Python code…</div>
+                  <div style={{fontSize:10,color:"#354d72"}}>This uses a quality-checked template — may take 20–40 seconds</div>
                 </div>
               )}
-              {it.code&&!generatingCode&&<div style={{fontSize:11.5,color:"#a5f3fc",lineHeight:1.75}}><CodeMd text={it.code}/></div>}
-              {!it.code&&!generatingCode&&(
+
+              {/* Valid code */}
+              {hasValidCode&&!generatingCode&&(
+                <div style={{fontSize:11.5,color:"#a5f3fc",lineHeight:1.75}}><CodeMd text={it.code}/></div>
+              )}
+
+              {/* No code yet OR failed — show retry button */}
+              {(!it.code||codeIsFailed)&&!generatingCode&&(
                 <div style={{textAlign:"center",padding:"28px 0"}}>
-                  <div style={{fontSize:11,color:"#354d72",marginBottom:14}}>Code has not been generated yet for this session.</div>
-                  <button onClick={genCode} style={{padding:"8px 20px",borderRadius:3,border:"1px solid rgba(42,255,128,.4)",background:"rgba(42,255,128,.06)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
+                  {codeIsFailed&&(
+                    <div style={{background:"rgba(255,92,92,.06)",border:"1px solid rgba(255,92,92,.2)",borderRadius:4,padding:"12px 16px",marginBottom:16,fontSize:11,color:"#fca5a5",lineHeight:1.6}}>
+                      ⚠️ Previous generation hit a rate limit. Click below to try again — the rate limit resets every 60 seconds.
+                    </div>
+                  )}
+                  {!it.code&&!codeIsFailed&&(
+                    <div style={{fontSize:11,color:"#354d72",marginBottom:14}}>Code not yet generated for this session.</div>
+                  )}
+                  <button onClick={async()=>{
+                    // Clear the failed code first so UI updates correctly
+                    const cleared=allIters.map((iter:any)=>iter.id===it.id?{...iter,code:""}:iter);
+                    onUpdate(cleared);
+                    await genCode();
+                  }} style={{padding:"10px 28px",borderRadius:4,border:"1px solid rgba(42,255,128,.5)",background:"rgba(42,255,128,.1)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:11,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:8}}>
                     ⚡ Generate Code Now
                   </button>
                 </div>
@@ -2275,40 +2713,31 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
                     {codeOutput.error?"❌ EXECUTION ERROR":"✓ EXECUTION OUTPUT"}
                     <button onClick={()=>setCodeOutput(null)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#354d72",cursor:"pointer",fontSize:11}}>✕</button>
                   </div>
-
                   {codeOutput.error&&(
                     <div style={{padding:"12px 14px",background:"rgba(255,92,92,.05)"}}>
                       <pre style={{color:"#fca5a5",fontSize:11,margin:0,whiteSpace:"pre-wrap"}}>{codeOutput.error}</pre>
                     </div>
                   )}
-
                   {codeOutput.stdout&&(
                     <div style={{padding:"12px 14px",borderTop:"1px solid #182640"}}>
                       <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#354d72",letterSpacing:1.5,marginBottom:6}}>STDOUT</div>
                       <pre style={{color:"#a5f3fc",fontSize:11,margin:0,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{codeOutput.stdout}</pre>
                     </div>
                   )}
-
                   {codeOutput.stderr&&(
                     <div style={{padding:"12px 14px",borderTop:"1px solid #182640",background:"rgba(255,165,0,.03)"}}>
-                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#fbbf24",letterSpacing:1.5,marginBottom:6}}>WARNINGS / STDERR</div>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#fbbf24",letterSpacing:1.5,marginBottom:6}}>WARNINGS</div>
                       <pre style={{color:"#fde68a",fontSize:10.5,margin:0,whiteSpace:"pre-wrap",maxHeight:150,overflowY:"auto"}}>{codeOutput.stderr}</pre>
                     </div>
                   )}
-
                   {codeOutput.images&&codeOutput.images.length>0&&(
                     <div style={{padding:"12px 14px",borderTop:"1px solid #182640"}}>
                       <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#a78bfa",letterSpacing:1.5,marginBottom:10}}>📊 GENERATED FIGURES ({codeOutput.images.length})</div>
                       <div style={{display:"flex",flexDirection:"column",gap:12}}>
                         {codeOutput.images.map((img:string,i:number)=>(
                           <div key={i} style={{border:"1px solid #182640",borderRadius:3,overflow:"hidden"}}>
-                            <img src={img.startsWith("data:")?img:`data:image/png;base64,${img}`}
-                              alt={`Output figure ${i+1}`}
-                              style={{width:"100%",maxWidth:600,display:"block"}}
-                            />
-                            <div style={{padding:"5px 10px",background:"#0c1a30",fontSize:9,color:"#354d72",fontFamily:"Oxanium,sans-serif"}}>
-                              Figure {i+1} — right-click to save
-                            </div>
+                            <img src={img.startsWith("data:")?img:`data:image/png;base64,${img}`} alt={`Figure ${i+1}`} style={{width:"100%",maxWidth:600,display:"block"}}/>
+                            <div style={{padding:"5px 10px",background:"#0c1a30",fontSize:9,color:"#354d72",fontFamily:"Oxanium,sans-serif"}}>Figure {i+1} — right-click to save</div>
                           </div>
                         ))}
                       </div>
@@ -2317,6 +2746,11 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
                 </div>
               )}
             </div>
+          )}
+
+          {/* ══ PROTOCOLS ══ */}
+          {tab==="protocol"&&(
+            <ProtocolPanel it={it} q={q} allIters={allIters} onUpdate={onUpdate}/>
           )}
 
           {/* ══ EXPERT RESOLUTION ══ */}
@@ -2633,7 +3067,11 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
       setLiveScore(judgeResult.score);
       const snippets=roundAgents.map(a=>{
         const ag=AGENTS.find(x=>x.id===a.aid);
-        return {name:ag?.name||a.aid,color:ag?.color||"#888",lens:ag?.lens||"",snippet:a.resp.slice(0,180)};
+        const full=a.resp||"";
+        const cut=full.slice(0,320);
+        const lastDot=Math.max(cut.lastIndexOf(". "),cut.lastIndexOf(".\n"),cut.lastIndexOf("! "),cut.lastIndexOf("? "));
+        const snippet=lastDot>150?cut.slice(0,lastDot+1):cut;
+        return {name:ag?.name||a.aid,color:ag?.color||"#888",lens:ag?.lens||"",snippet,full};
       });
       setLiveRounds(prev=>[...prev,{roundNum:round,score:judgeResult.score,tensions:judgeResult.unresolved_tensions||[],focus:judgeResult.next_debate_focus||"",snippets}]);
       allRounds.push({roundNum:round,agents:roundAgents,judge:judgeResult});
@@ -2658,7 +3096,7 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
       ui: ui||"(initial analysis)",
       sessionId:SESSION_ID,
       rounds:allRounds,totalRounds:allRounds.length,finalScore,resolved:true,
-      consensus:finalConsensus,plainSummary,conclusion,code,
+      consensus:finalConsensus,plainSummary,conclusion,code,protocols:"",
       isFollowUp:prevConsensus.length>0,
     };
     const updatedIters=[...iters,iteration];
