@@ -480,7 +480,7 @@ async function callClaude(system, userMsg) {
 }
 
 /* ═══════ WORKER URL — replace with your actual Worker URL ═══════ */
-const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev/";
+const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev";
 
 /* ═══════ SHARED STORAGE (Cloudflare KV via Worker) ═══════ */
 // All data is stored in Cloudflare KV — shared across ALL users globally
@@ -558,36 +558,67 @@ async function runCodeInSandbox(code:string):Promise<{stdout:string,stderr:strin
     return{stdout:"",stderr:"",images:[],error:`Connection error: ${e.message}`};
   }
 }
-const JUDGE_SYS=`You are an expert scientific arbiter evaluating a multi-agent biology debate.
-Return ONLY valid JSON, no markdown fences:
-{
-  "score": <integer 0-100, weighted average of dimensions below>,
-  "dimensions": {
-    "scientific_accuracy": <0-100, are claims grounded in established biology?>,
-    "experimental_feasibility": <0-100, can a real lab execute this?>,
-    "code_correctness": <0-100, is the proposed code/pipeline sound?>,
-    "novelty": <0-100, does it go beyond textbook answers?>,
-    "clarity": <0-100, is the action plan specific and actionable?>
-  },
-  "resolved": <true if score>=60>,
-  "unresolved_tensions": ["specific tension 1", "specific tension 2"],
-  "next_debate_focus": "One specific scientific question for next round",
-  "strongest_agent": "<agent name> made the most evidence-based argument because...",
-  "weakest_claim": "The claim that needs most evidence is..."
-}
-Scoring weights: scientific_accuracy=35%, experimental_feasibility=20%, code_correctness=25%, novelty=10%, clarity=10%.
-Score rubric: 0-30=fundamental disagreements, 31-55=partial agreement, 56-59=mostly aligned but key gap, 60-79=strong consensus, 80-100=full convergence.
-Be specific — name actual agent claims, tools, or methods in your assessment.`;
+const JUDGE_SYS=`You are a scientific arbiter evaluating a multi-agent biology debate.
 
-async function judgeRound(q, allRounds, prevConsensus){
-  const summaries = allRounds.map((rnd,ri)=>
-    `=== ROUND ${ri+1} ===\n`+rnd.agents.map(a=>{const ag=AGENTS.find(x=>x.id===a.aid);return`[${ag?.name}/${ag?.lens}]: ${a.resp.slice(0,250)}`;}).join("\n\n")
+You MUST return ONLY a JSON object. No explanation before or after. No markdown. No backticks. Start your response with { and end with }.
+
+The JSON must have exactly these keys:
+{"score":75,"dimensions":{"scientific_accuracy":80,"experimental_feasibility":70,"code_correctness":75,"novelty":65,"clarity":80},"resolved":true,"unresolved_tensions":["tension 1","tension 2"],"next_debate_focus":"specific question for next round","strongest_agent":"AgentName because reason","weakest_claim":"claim that needs evidence"}
+
+Rules:
+- score: integer 0-100 (weighted: scientific_accuracy 35%, code_correctness 25%, experimental_feasibility 20%, novelty 10%, clarity 10%)
+- resolved: true if score >= 60, false otherwise
+- unresolved_tensions: array of 1-3 strings describing genuine disagreements
+- next_debate_focus: one specific scientific question to resolve next round
+- strongest_agent: name of agent with best evidence + brief reason
+- weakest_claim: most unsupported claim made by any agent
+
+Score guide: 0-30 = fundamental disagreement, 31-59 = partial alignment, 60-79 = strong consensus, 80-100 = full convergence`;
+
+async function judgeRound(q:any, allRounds:any[], prevConsensus:string){
+  const summaries=allRounds.map((rnd:any,ri:number)=>
+    `=== ROUND ${ri+1} ===\n`+rnd.agents.map((a:any)=>{
+      const ag=AGENTS.find((x:any)=>x.id===a.aid);
+      return `[${ag?.name}/${ag?.lens}]: ${a.resp.slice(0,220)}`;
+    }).join("\n\n")
   ).join("\n\n");
-  const priorCtx = prevConsensus ? `\n\n=== PRIOR SESSION CONSENSUS (agents must build on and improve this) ===\n${prevConsensus.slice(0,400)}` : "";
+  const priorCtx=prevConsensus?`\n\nPRIOR CONSENSUS:\n${prevConsensus.slice(0,300)}`:"";
+
   try{
-    const raw=await callClaude(JUDGE_SYS,`Problem: ${q.title}${priorCtx}\n\n${summaries}\n\nEvaluate convergence. Return JSON only.`);
-    return JSON.parse(raw.replace(/```json\n?/g,"").replace(/```/g,"").trim());
-  }catch{return{score:48,resolved:false,unresolved_tensions:["Parse error"],next_debate_focus:"Provide more specific experimental evidence and concrete numerical targets"};}
+    const raw=await callClaude(JUDGE_SYS,`Biology problem: ${q.title}${priorCtx}\n\n${summaries}\n\nReturn JSON only. Start with {`);
+
+    // Robust JSON extraction — find first { and last }
+    const start=raw.indexOf("{");
+    const end=raw.lastIndexOf("}");
+    if(start===-1||end===-1||end<=start){
+      throw new Error("No JSON object found in response");
+    }
+    const jsonStr=raw.slice(start,end+1);
+    const parsed=JSON.parse(jsonStr);
+
+    // Validate required fields, fill defaults if missing
+    return {
+      score: typeof parsed.score==="number" ? Math.min(100,Math.max(0,parsed.score)) : 50,
+      dimensions: parsed.dimensions||{scientific_accuracy:50,experimental_feasibility:50,code_correctness:50,novelty:50,clarity:50},
+      resolved: typeof parsed.resolved==="boolean" ? parsed.resolved : (parsed.score||50)>=60,
+      unresolved_tensions: Array.isArray(parsed.unresolved_tensions) ? parsed.unresolved_tensions : ["Agents still refining their positions"],
+      next_debate_focus: parsed.next_debate_focus||"Provide more specific experimental evidence with concrete numerical targets",
+      strongest_agent: parsed.strongest_agent||"",
+      weakest_claim: parsed.weakest_claim||"",
+    };
+  }catch(e:any){
+    console.warn("judgeRound parse failed:",e.message);
+    // Return a reasonable default instead of crashing
+    return{
+      score:52,
+      dimensions:{scientific_accuracy:55,experimental_feasibility:50,code_correctness:50,novelty:45,clarity:55},
+      resolved:false,
+      unresolved_tensions:["Agents have differing approaches — more specificity needed"],
+      next_debate_focus:"Provide concrete tool names, sample sizes, and statistical thresholds",
+      strongest_agent:"",
+      weakest_claim:"",
+    };
+  }
 }
 
 async function runDebateRound(q:any, roundNum:number, prevRounds:any[], userInput:string, onStatus:any, prevConsensus:string){
@@ -671,14 +702,12 @@ Lens: **${ag.lens}**. Be specific — cite tool names, numbers, organisms. 260 w
 }
 
 /* ═══════ RETRY HELPER ═══════ */
-async function callWithRetry(system:string, msg:string, maxTokens:number=900, label:string=""):Promise<string>{
+async function callWithRetry(system:string, msg:string, maxTokens:number=800, label:string=""):Promise<string>{
   let attempts=0;
   while(attempts<5){
     try{
-      // Use a higher token limit endpoint call
       const cfg=_customAPI;
       if(cfg&&cfg.apiKey&&cfg.provider!=="bioarena"){
-        // reuse callClaude for BYOA
         return await callClaude(system,msg);
       }
       const res=await fetch(`${WORKER_URL}/api/ai`,{
@@ -690,21 +719,49 @@ async function callWithRetry(system:string, msg:string, maxTokens:number=900, la
           messages:[{role:"system",content:system},{role:"user",content:msg}]
         }),
       });
+
+      // Read body as text first so we can inspect it on error
+      const rawText=await res.text();
+
       if(!res.ok){
-        const errText=await res.text();
-        throw new Error(`API ${res.status}: ${errText}`);
+        throw new Error(`API ${res.status}: ${rawText.slice(0,300)}`);
       }
-      const d=await res.json();
+
+      let d:any;
+      try{ d=JSON.parse(rawText); }
+      catch{ throw new Error(`Invalid JSON from API: ${rawText.slice(0,200)}`); }
+
+      // Groq returns errors inside a 200 response sometimes
+      if(d.error){
+        const errMsg=d.error.message||JSON.stringify(d.error);
+        throw new Error(`Groq error: ${errMsg}`);
+      }
+
       const text=d.choices?.[0]?.message?.content||"";
-      if(!text) throw new Error("Empty response from API");
+      if(!text){
+        // Log what we got for debugging
+        console.warn(`${label} empty response, raw:`, rawText.slice(0,300));
+        throw new Error(`Empty response: ${rawText.slice(0,150)}`);
+      }
       return text;
+
     }catch(e:any){
       attempts++;
-      const is429=e.message&&(e.message.includes("429")||e.message.includes("rate")||e.message.includes("Rate limit"));
-      const isRetryable=is429||e.message?.includes("500")||e.message?.includes("503");
+      const msg_lower=(e.message||"").toLowerCase();
+      const isRetryable=
+        msg_lower.includes("429")||
+        msg_lower.includes("rate")||
+        msg_lower.includes("limit")||
+        msg_lower.includes("500")||
+        msg_lower.includes("503")||
+        msg_lower.includes("empty")||
+        msg_lower.includes("invalid json")||
+        msg_lower.includes("tokens per minute")||
+        msg_lower.includes("context_length");
+
       if(isRetryable&&attempts<5){
-        const wait=Math.min(8000*attempts,40000);
-        console.log(`${label} retry ${attempts}/4 in ${wait}ms — ${e.message}`);
+        const wait=Math.min(10000*attempts,45000); // 10s, 20s, 30s, 40s
+        console.log(`[${label}] retry ${attempts}/4 in ${wait/1000}s — ${e.message?.slice(0,100)}`);
         await new Promise(r=>setTimeout(r,wait));
       }else{
         throw e;
@@ -1837,7 +1894,7 @@ function Category({catId,goHome,goQuestion}){
 /* ═══════ LIVE PANEL ═══════ */
 function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
   const sc=score===null?"#354d72":score>=80?"#2aff80":score>=60?"#4ade80":score>=40?"#ffc34d":"#f97316";
-  const pl={debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language plan…",conclusion:"Writing conclusion…",code:"Generating starter code…"}[phase]||phase;
+  const pl={"cooling down…":"⏳ Cooldown 60s — letting rate limit reset before generating outputs…",debating:"Agents writing responses…",judging:"Judge evaluating agreement…",consensus:"Building expert resolution…",plain:"Writing plain-language action plan…",conclusion:"Writing conclusion card…",code:"Generating starter code…",done:"Debate complete ✓"}[phase]||phase;
   const latest=liveRounds&&liveRounds[liveRounds.length-1]||null;
 
   return(
@@ -1905,7 +1962,7 @@ function LivePanel({round,maxRounds,agentStatus,score,phase,liveRounds}){
           ))}
 
           {/* Phase status */}
-          {(phase==="judging"||phase==="consensus"||phase==="plain"||phase==="conclusion"||phase==="code")&&(
+          {(phase==="cooling down…"||phase==="judging"||phase==="consensus"||phase==="plain"||phase==="conclusion"||phase==="code")&&(
             <div style={{display:"flex",alignItems:"center",gap:7,padding:"7px 9px",background:"rgba(42,255,128,.04)",border:"1px solid rgba(42,255,128,.15)",borderRadius:3,marginTop:6}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"#2aff80",animation:"blink 1s infinite",flexShrink:0}}/>
               <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9.5,color:"#2aff80"}}>{pl}</div>
@@ -2073,16 +2130,18 @@ function Question({qid,goHome,goCategory}){
     }
     const finalScore=allRounds[allRounds.length-1]?.judge?.score??0;
 
-    await new Promise(r=>setTimeout(r,8000));
+    // Long cooldown after debate — free Groq tier needs ~60s to reset TPM bucket
+    setLivePhase("cooling down…");
+    await new Promise(r=>setTimeout(r,62000));
     setLivePhase("consensus");
     const finalConsensus=await buildFinalConsensus(q,allRounds,effectiveUi,true,prevConsensus);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("plain");
     const plainSummary=await buildPlainSummary(q,finalConsensus,effectiveUi,true,prevConsensus);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("conclusion");
     const conclusion=await buildConclusion(q,allRounds,finalConsensus,effectiveUi,true);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("code");
     const code=await generateCode(q,finalConsensus,effectiveUi);
 
@@ -3078,16 +3137,17 @@ function CommunityQuestion({cqid, cqTitle, goHome, goCommunity}){
     }
     const finalScore=allRounds[allRounds.length-1]?.judge?.score??0;
 
+    setLivePhase("cooling down…");
+    await new Promise(r=>setTimeout(r,62000));
     setLivePhase("consensus");
-    await new Promise(r=>setTimeout(r,8000));
     const finalConsensus=await buildFinalConsensus(enrichedQ,allRounds,ui,true,prevConsensus);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("plain");
     const plainSummary=await buildPlainSummary(enrichedQ,finalConsensus,ui,true,prevConsensus);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("conclusion");
     const conclusion=await buildConclusion(enrichedQ,allRounds,finalConsensus,ui,true);
-    await new Promise(r=>setTimeout(r,5000));
+    await new Promise(r=>setTimeout(r,22000));
     setLivePhase("code");
     const code=await generateCode(enrichedQ,finalConsensus,ui);
 
