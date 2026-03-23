@@ -480,7 +480,7 @@ async function callClaude(system, userMsg) {
 }
 
 /* ═══════ WORKER URL — replace with your actual Worker URL ═══════ */
-const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev/";
+const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev";
 
 /* ═══════ SHARED STORAGE (Cloudflare KV via Worker) ═══════ */
 // All data is stored in Cloudflare KV — shared across ALL users globally
