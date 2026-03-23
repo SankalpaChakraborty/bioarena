@@ -578,6 +578,128 @@ async function runCodeInSandbox(code:string):Promise<{stdout:string,stderr:strin
     return{stdout:"",stderr:"",images:[],error:`Connection error: ${e.message}`};
   }
 }
+
+/* ═══════ #3 DYNAMIC TOOL REGISTRY ═══════ */
+// Agents receive only tools relevant to their specific task — not all 56 upfront
+// This prevents context bloat and improves reasoning quality
+const TOOL_REGISTRY:Record<string,{name:string,use:string,pip:string,fn:string}[]>={
+  rnaseq:[
+    {name:"scipy.stats.ttest_ind",use:"Welch t-test for DEG",pip:"scipy",fn:"ttest_ind(treat, ctrl, equal_var=False) → (t_stat, p_val)"},
+    {name:"statsmodels.stats.multitest.multipletests",use:"BH FDR correction",pip:"statsmodels",fn:"multipletests(pvals, method='fdr_bh') → (reject, padj, ...)"},
+    {name:"sklearn.decomposition.PCA",use:"PCA for sample QC",pip:"scikit-learn",fn:"PCA(n_components=10).fit_transform(log_cpm)"},
+    {name:"seaborn.heatmap",use:"Expression heatmap",pip:"seaborn",fn:"sns.heatmap(df, cmap='RdBu_r', center=0, xticklabels=True)"},
+    {name:"scipy.cluster.hierarchy.dendrogram",use:"Sample clustering",pip:"scipy",fn:"dendrogram(linkage(data, 'ward'))"},
+  ],
+  scrna:[
+    {name:"sklearn.decomposition.PCA",use:"PCA before clustering",pip:"scikit-learn",fn:"PCA(n_components=30).fit_transform(log_norm_counts)"},
+    {name:"sklearn.cluster.KMeans",use:"Cell type clustering",pip:"scikit-learn",fn:"KMeans(n_clusters=8, n_init=10).fit_predict(pca_coords)"},
+    {name:"sklearn.manifold.TSNE",use:"2D UMAP-like visualisation",pip:"scikit-learn",fn:"TSNE(n_components=2, perplexity=30, n_iter=1000).fit_transform(pca[:,:10])"},
+    {name:"scipy.stats.ttest_ind",use:"Marker gene detection",pip:"scipy",fn:"ttest_ind(cluster_cells, others, axis=0) → t_stat array"},
+    {name:"sklearn.preprocessing.normalize",use:"Library size normalisation",pip:"scikit-learn",fn:"normalize(counts, norm='l1') * 1e4"},
+  ],
+  protein:[
+    {name:"biopython.SeqIO",use:"Parse FASTA/GenBank",pip:"biopython",fn:"list(SeqIO.parse('file.fasta','fasta'))"},
+    {name:"biopython.pairwise2.align.globalms",use:"Pairwise sequence alignment",pip:"biopython",fn:"pairwise2.align.globalms(seq1, seq2, 2,-1,-0.5,-0.1)"},
+    {name:"scipy.spatial.distance.cdist",use:"Residue distance matrix from PDB coords",pip:"scipy",fn:"cdist(ca_coords_A, ca_coords_B, 'euclidean')"},
+    {name:"sklearn.cluster.AgglomerativeClustering",use:"Cluster protein families",pip:"scikit-learn",fn:"AgglomerativeClustering(n_clusters=5, linkage='average').fit_predict(dist_mat)"},
+  ],
+  metabolic:[
+    {name:"scipy.optimize.linprog",use:"Linear programming FBA",pip:"scipy",fn:"linprog(c, A_eq=S, b_eq=zeros, A_ub=A, b_ub=b, bounds=flux_bounds)"},
+    {name:"numpy.linalg.lstsq",use:"Least-squares flux estimation",pip:"numpy",fn:"lstsq(S, measured_fluxes, rcond=None)[0]"},
+    {name:"networkx.DiGraph",use:"Metabolic network graph",pip:"networkx",fn:"G=nx.DiGraph(); [G.add_edge(r,p,weight=1) for r,p in rxns]"},
+    {name:"scipy.stats.pearsonr",use:"Flux-expression correlation",pip:"scipy",fn:"pearsonr(flux_vector, rna_expression)"},
+  ],
+  survival:[
+    {name:"scipy.stats.ks_2samp",use:"Compare survival distributions",pip:"scipy",fn:"ks_2samp(group1_times, group2_times) → (stat, p_val)"},
+    {name:"sklearn.linear_model.LogisticRegression",use:"Predict event probability",pip:"scikit-learn",fn:"LogisticRegression(C=1.0).fit(X_covariates, events)"},
+    {name:"scipy.stats.chi2_contingency",use:"Log-rank test approximation",pip:"scipy",fn:"chi2_contingency([[obs_A,exp_A],[obs_B,exp_B]])"},
+  ],
+  crispr:[
+    {name:"scipy.stats.mannwhitneyu",use:"Non-parametric guide comparison",pip:"scipy",fn:"mannwhitneyu(treat_counts, ctrl_counts, alternative='two-sided')"},
+    {name:"statsmodels.stats.multitest.multipletests",use:"Gene-level FDR",pip:"statsmodels",fn:"multipletests(gene_pvals, method='fdr_bh')[1]"},
+    {name:"numpy.log2",use:"Log2 fold change",pip:"numpy",fn:"np.log2((treat_mean+0.5)/(ctrl_mean+0.5))"},
+  ],
+  spatial:[
+    {name:"scipy.spatial.KDTree",use:"Find spatially adjacent cells",pip:"scipy",fn:"tree=KDTree(coords); idx=tree.query_ball_point(coord, r=50)"},
+    {name:"sklearn.neighbors.KNeighborsClassifier",use:"Spatial cell type propagation",pip:"scikit-learn",fn:"KNeighborsClassifier(n_neighbors=10).fit(coords, labels)"},
+    {name:"scipy.stats.pearsonr",use:"Spatial co-expression",pip:"scipy",fn:"pearsonr(gene_A_expr, gene_B_expr)"},
+  ],
+  general:[
+    {name:"scipy.stats.ttest_ind / mannwhitneyu",use:"Group comparison",pip:"scipy",fn:"ttest_ind(a,b) or mannwhitneyu(a,b,alternative='two-sided')"},
+    {name:"sklearn.decomposition.PCA",use:"Dimensionality reduction",pip:"scikit-learn",fn:"PCA(n_components=10).fit_transform(X)"},
+    {name:"sklearn.cluster.KMeans",use:"Clustering",pip:"scikit-learn",fn:"KMeans(n_clusters=k,n_init=10).fit_predict(X)"},
+    {name:"statsmodels.stats.multitest.multipletests",use:"Multiple testing correction",pip:"statsmodels",fn:"multipletests(pvals,method='fdr_bh')[1]"},
+    {name:"matplotlib.pyplot + seaborn",use:"Figures saved to disk",pip:"matplotlib seaborn",fn:"plt.savefig('fig.png',dpi=150,bbox_inches='tight')"},
+  ],
+};
+
+function getRelevantTools(q:any):string{
+  const text=(q.title+" "+(q.tags||[]).join(" ")+" "+(q.prompt||"").slice(0,200)).toLowerCase();
+  let cat="general";
+  if(text.includes("rna-seq")||text.includes("rnaseq")||text.includes("deg")||text.includes("differential expression")) cat="rnaseq";
+  else if(text.includes("single-cell")||text.includes("scrna")||text.includes("umap")||text.includes("leiden")) cat="scrna";
+  else if(text.includes("protein")||text.includes("alphafold")||text.includes("structure")||text.includes("folding")) cat="protein";
+  else if(text.includes("metabolic")||text.includes("flux")||text.includes("fba")||text.includes("cobra")) cat="metabolic";
+  else if(text.includes("survival")||text.includes("kaplan")||text.includes("cox")||text.includes("clinical trial")) cat="survival";
+  else if(text.includes("crispr")||text.includes("screen")||text.includes("sgrna")||text.includes("mageck")) cat="crispr";
+  else if(text.includes("spatial")||text.includes("visium")||text.includes("merfish")||text.includes("xenium")) cat="spatial";
+
+  const tools=(TOOL_REGISTRY[cat]||TOOL_REGISTRY.general).slice(0,5);
+  return `\n\n**On-demand tool registry — ${cat.toUpperCase()} category (all pip-installable, use these):**\n`+
+    tools.map((t:any)=>`\`${t.name}\` — ${t.use}\n  install: pip install ${t.pip} | call: ${t.fn}`).join("\n");
+}
+
+/* ═══════ #8 LIVE DATABASE FETCHER ═══════ */
+async function fetchLiveDBContext(q:any):Promise<string>{
+  const text=(q.title+" "+(q.tags||[]).join(" ")).toLowerCase();
+  const results:string[]=[];
+
+  // KEGG pathway search (free, no auth needed)
+  try{
+    if(text.includes("pathway")||text.includes("kegg")||text.includes("metabolic")||text.includes("signaling")||text.includes("enrichment")){
+      const r=await fetch(`${WORKER_URL}/api/kegg?q=${encodeURIComponent(q.title.split(" ").slice(0,3).join("+"))}`);
+      if(r.ok){
+        const d=await r.json();
+        if(d.pathways?.length>0){
+          results.push(`**KEGG live data:** ${d.pathways.slice(0,5).map((p:any)=>`${p.id} — ${p.name}`).join(" | ")}`);
+        }
+      }
+    }
+  }catch{}
+
+  // UniProt gene/protein lookup
+  try{
+    const geneMatch=q.title.match(/\b([A-Z][A-Z0-9]{2,9})\b/);
+    if(geneMatch&&(text.includes("protein")||text.includes("gene")||text.includes("kinase")||text.includes("receptor")||text.includes("enzyme"))){
+      const r=await fetch(`${WORKER_URL}/api/uniprot?gene=${encodeURIComponent(geneMatch[1])}`);
+      if(r.ok){
+        const d=await r.json();
+        if(d.protein){
+          results.push(`**UniProt live — ${geneMatch[1]}:** ${d.protein.name} | ${(d.protein.function||"").slice(0,150)}…`);
+        }
+      }
+    }
+  }catch{}
+
+  return results.length>0?"\n\n**Live database context (queried now):**\n"+results.join("\n"):"";
+}
+
+/* ═══════ #6 ROBUSTNESS TESTING ═══════ */
+// Round 2 agents receive a real-world challenge to stress-test their proposals
+// Inspired by BioAgent Bench methodology (arxiv.org/abs/2601.21800)
+const ROBUSTNESS_CHALLENGES=[
+  "**ROBUSTNESS CHALLENGE (Round 2 — BioAgent Bench methodology):** Your Round 1 proposal assumed ideal conditions. Now stress-test it: assume 30% of samples have confounding batch effects from different sequencing runs, 2 samples are likely outliers, and your top-recommended reagent is unavailable for 6 weeks. What breaks first in your approach? How do you adapt?",
+  "**ROBUSTNESS CHALLENGE (Round 2 — BioAgent Bench methodology):** Your Round 1 answer assumed adequate sample sizes. Real constraint: n=3/group only (not the ideal you assumed), total budget is $500, no HPC access (laptop only, 16GB RAM). What is the minimum viable version of your approach that still produces statistically valid, publishable results?",
+  "**ROBUSTNESS CHALLENGE (Round 2 — BioAgent Bench methodology):** Your Round 1 proposal will now receive a decoy/adversarial input: assume the experimenter gives you data labelled as 'treatment' that is actually a duplicate of 'control' (common mislabelling error). What quality control step in your pipeline would detect this? What does your output look like if it goes undetected?",
+  "**ROBUSTNESS CHALLENGE (Round 2 — BioAgent Bench methodology):** Your Round 1 approach assumed clean inputs. Real-world complication: RNA quality is variable (RIN 4–8, not ≥7), the genome annotation is outdated (GRCh37 not GRCh38), and 15% of samples have >25% mitochondrial reads. How do each of these degrade your results, and what thresholds/filters would you apply?",
+];
+
+function addRobustnessChallenge(msg:string, roundNum:number, qTitle:string):string{
+  if(roundNum!==2) return msg;
+  // Pick deterministically based on question title hash — same question always gets same challenge
+  const idx=qTitle.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%ROBUSTNESS_CHALLENGES.length;
+  return msg+"\n\n"+ROBUSTNESS_CHALLENGES[idx];
+}
 const JUDGE_SYS=`You are a scientific arbiter evaluating a multi-agent biology debate.
 
 You MUST return ONLY a JSON object. No explanation before or after. No markdown. No backticks. Start your response with { and end with }.
@@ -644,54 +766,71 @@ async function judgeRound(q:any, allRounds:any[], prevConsensus:string){
 async function runDebateRound(q:any, roundNum:number, prevRounds:any[], userInput:string, onStatus:any, prevConsensus:string){
   const agents=[];
 
-  // Fetch PubMed citations on round 1 only (avoid rate limits)
+  // #2 PubMed citations — round 1 only
   let citationContext="";
   if(roundNum===1){
-    try{
-      citationContext=await fetchPubMedCitations(`${q.title} ${(q.tags||[]).slice(0,3).join(" ")}`);
-    }catch{}
+    try{ citationContext=await fetchPubMedCitations(`${q.title} ${(q.tags||[]).slice(0,3).join(" ")}`); }catch{}
   }
 
-  // Build relevance context for follow-up inputs
-  const relevanceNote = userInput && prevRounds.length>0
-    ? `\n\n**CRITICAL — User follow-up input to assess:** "${userInput}"\nBefore responding, explicitly state in 1 sentence: (a) how relevant this input is to the original problem (HIGH/MEDIUM/LOW relevance and why), then (b) how you will specifically incorporate it. If LOW relevance, say so honestly and explain what you'll focus on instead.`
-    : "";
+  // #3 Dynamic tool discovery — fetch relevant tools for THIS question category
+  const toolContext=getRelevantTools(q);
+
+  // #8 Live database context — KEGG/UniProt — round 1 only
+  let dbContext="";
+  if(roundNum===1){
+    try{ dbContext=await fetchLiveDBContext(q); }catch{}
+  }
+
+  // Relevance note for follow-up inputs
+  const relevanceNote=userInput&&prevRounds.length>0
+    ?`\n\n**CRITICAL — User follow-up input to assess:** "${userInput}"\nBefore responding, explicitly state: (a) HIGH/MEDIUM/LOW relevance and why, then (b) how you will specifically incorporate it. If LOW relevance, say so honestly.`
+    :"";
 
   for(const ag of AGENTS){
     onStatus(ag.id,"running",roundNum);
     await new Promise(r=>setTimeout(r,5000));
 
     let msg=`**Problem:** ${q.title}\n\n${q.prompt}\n\n`;
-    if(userInput && prevRounds.length===0) msg+=`**Researcher context (incorporate specifically):** ${userInput}\n\n`;
+    if(userInput&&prevRounds.length===0) msg+=`**Researcher context (incorporate specifically):** ${userInput}\n\n`;
     if(relevanceNote) msg+=relevanceNote+"\n\n";
     if(prevConsensus) msg+=`**Previous session consensus (build on/challenge — do NOT repeat):**\n${prevConsensus.slice(0,300)}\n\n`;
     if(citationContext) msg+=citationContext+"\n\n";
+    if(dbContext) msg+=dbContext+"\n\n";
+    // Always inject relevant tools — this is dynamic tool discovery
+    msg+=toolContext+"\n\n";
 
     if(prevRounds.length>0){
       const last=prevRounds[prevRounds.length-1];
       const others=last.agents.filter((a:any)=>a.aid!==ag.id).map((a:any)=>{const oa=AGENTS.find((x:any)=>x.id===a.aid);return`**${oa?.name} (${oa?.lens}):** ${a.resp.slice(0,180)}`;}).join("\n\n");
       const jn=last.judge?`\n\n**Judge verdict (${last.judge.score}%) — next focus:** ${last.judge.next_debate_focus}`:"";
-      msg+=`ROUND ${roundNum}/${MAX_ROUNDS}. Do NOT repeat prior analysis. You MUST:
+      let roundMsg=`ROUND ${roundNum}/${MAX_ROUNDS}. Do NOT repeat prior analysis. You MUST:
 1. State your relevance assessment of the user input (if any)
 2. Directly challenge ONE specific peer claim (name them + quote their claim)
 3. Add NEW specifics: exact tool names, sample sizes, p-value thresholds, protocols
-4. Structure your response with these labeled sections:
+4. Use the tool registry above — pick the best tool and show the exact function call
+5. Structure your response with these labeled sections:
    🔬 HYPOTHESIS: [one sentence — testable, specific]
-   🧪 PROTOCOL: [2-3 concrete steps with reagents/tools]
-   📊 ANALYSIS: [specific method + expected output]
-   ⚠️ LIMITATION: [one honest limitation of your approach]
+   🧪 PROTOCOL: [2-3 concrete steps with reagents/tools from the registry above]
+   📊 ANALYSIS: [exact Python function call from the tool registry]
+   📚 CITATION: [Author et al. Year, PMID:XXXXXXX — must cite at least one]
+   ⚠️ LIMITATION: [one honest limitation]
 
 **Other agents Round ${roundNum-1}:**\n${others}${jn}
 
 Lens: **${ag.lens}**. 260 words max. No generic statements.`;
+
+      // #6 Robustness challenge — round 2 only
+      roundMsg=addRobustnessChallenge(roundMsg, roundNum, q.title);
+      msg+=roundMsg;
     }else{
       msg+=`ROUND 1 — Establish your position. Structure EXACTLY as:
 🔬 HYPOTHESIS: [one testable sentence — cite a specific mechanism/pathway/tool]
-🧪 PROTOCOL: [2-3 specific steps with named reagents, tools, or methods]
-📊 ANALYSIS: [exact computational or statistical approach]
+🧪 PROTOCOL: [2-3 specific steps with named reagents, tools, or methods FROM THE TOOL REGISTRY ABOVE]
+📊 ANALYSIS: [exact Python function call from the tool registry — show the actual code line]
+📚 CITATION: [Author et al. Year, PMID:XXXXXXX — mandatory, use the PubMed papers above if provided]
 ⚠️ LIMITATION: [one honest gap in your approach]
 
-Lens: **${ag.lens}**. Be specific — cite tool names, numbers, organisms. 260 words max. No vague generalities.`;
+Lens: **${ag.lens}**. Be specific — cite tool names, numbers, organisms, PMIDs. 260 words max.`;
     }
 
     try{
@@ -2777,7 +2916,7 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
     {id:"protocol",   label:"🧫 Protocols"},
     {id:"final",      label:"✓ Expert Resolution"},
     {id:"plain",      label:"📋 Action Plan"},
-    ...rounds.map(r=>({id:`r${r.roundNum}`,label:`Rd ${r.roundNum}${r.judge?.score!=null?` · ${r.judge.score}%`:""}`,roundNum:r.roundNum})),
+    ...rounds.map(r=>({id:`r${r.roundNum}`,label:`Rd ${r.roundNum}${r.roundNum===2?" 🔥":""}${r.judge?.score!=null?` · ${r.judge.score}%`:""}`,roundNum:r.roundNum})),
   ];
 
   // Detect if stored "code" is actually an error message
