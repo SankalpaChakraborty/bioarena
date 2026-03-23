@@ -67,99 +67,129 @@ document.head.appendChild(_style);
 
 /* ═══════ DATA ═══════ */
 const CATS = [
-  {id:"rnaseq",name:"RNA-seq DEG Analysis",color:"#2563eb",q:2,desc:"Single-cell isoform quantification wall and allele-specific expression dropout."},
-  {id:"metabolic",name:"Metabolic Modeling",color:"#9333ea",q:2,desc:"FBA with KRAS-PDAC metabolic reprogramming (Recon3D) and 13C MFA isotopologue mismatch."},
-  {id:"rna3d",name:"3D RNA Structure Prediction",color:"#0891b2",q:2,desc:"Long RNA folding wall (>200 nt) and pseudoknot NP-hardness."},
-  {id:"rnadesign",name:"De Novo RNA Design",color:"#16a34a",q:2,desc:"The in-cell riboswitch design gap (>90% SELEX-to-silence failure) and the sequence→function missing link."},
-  {id:"rnainteract",name:"RNA–Protein Interactions",color:"#dc2626",q:2,desc:"RBP cross-cell-type binding generalization failure (38% overlap between cell lines)."},
-  {id:"rnafunc",name:"RNA Function & Epitranscriptomics",color:"#d97706",q:2,desc:"lncRNA sequence-to-mechanism black box (100,000 catalogued, <500 mechanistically understood)."},
-  {id:"mrnadesign",name:"mRNA Therapeutics Design",color:"#7c3aed",q:2,desc:"Codon optimality paradox and the in vitro → in vivo translational gap."},
-  {id:"proteinfolding",name:"Protein Folding & Interaction",color:"#0f766e",q:1,desc:"AlphaFold2 phi-value analysis failure — static structure prediction cannot reproduce folding pathway kinetics."},
-  {id:"proteindesign",name:"De Novo Protein Design",color:"#be185d",q:1,desc:"RFdiffusion binder design funnel failure — 1% wet-lab attrition rate."},
-  {id:"darkgenome",name:"Deciphering the Dark Genome",color:"#1d4ed8",q:1,desc:"Enformer saturation mutagenesis HNF4A gap — TF availability vs sequence-intrinsic regulatory grammar."},
-  {id:"wholecell",name:"Whole-Cell Digital Twin",color:"#b45309",q:1,desc:"Perturb-seq GEARS accuracy cascade — accuracy collapses for multi-gene perturbations."},
-  {id:"drugdiscovery",name:"Personalized Drug Discovery",color:"#065f46",q:1,desc:"GDSC osimertinib translational gap — in vitro drug sensitivity predictions fail in clinical trials."},
-  {id:"evolution",name:"Predicting Evolutionary Shifts",color:"#9a3412",q:1,desc:"EVEscape BA.2.86 saltational evolution failure — models miss multi-mutation jumps."},
-  {id:"interactome",name:"Mapping the Human Interactome",color:"#4338ca",q:1,desc:"PPI Park-Marcotte strict split AUROC collapse (0.91→0.61) — diagnosing homology leakage."},
-  {id:"tools",name:"Translational Tooling & Apps",color:"#14b8a6",q:8,desc:"Practical, code-generating tools that convert biological data and protocols into usable apps, dashboards, and simulators."},
+  {id:"rnaseq",name:"RNA-seq DEG Analysis",color:"#2563eb",q:2,desc:"Single-cell isoform quantification wall and allele-specific expression dropout.",difficulty:"Expert"},
+  {id:"metabolic",name:"Metabolic Modeling",color:"#9333ea",q:2,desc:"FBA with KRAS-PDAC metabolic reprogramming (Recon3D) and 13C MFA isotopologue mismatch.",difficulty:"Expert"},
+  {id:"rna3d",name:"3D RNA Structure Prediction",color:"#0891b2",q:2,desc:"Long RNA folding wall (>200 nt) and pseudoknot NP-hardness.",difficulty:"Unsolved"},
+  {id:"rnadesign",name:"De Novo RNA Design",color:"#16a34a",q:2,desc:"The in-cell riboswitch design gap (>90% SELEX-to-silence failure) and the sequence→function missing link.",difficulty:"Unsolved"},
+  {id:"rnainteract",name:"RNA–Protein Interactions",color:"#dc2626",q:2,desc:"RBP cross-cell-type binding generalization failure (38% overlap between cell lines).",difficulty:"Expert"},
+  {id:"rnafunc",name:"RNA Function & Epitranscriptomics",color:"#d97706",q:2,desc:"lncRNA sequence-to-mechanism black box (100,000 catalogued, <500 mechanistically understood).",difficulty:"Unsolved"},
+  {id:"mrnadesign",name:"mRNA Therapeutics Design",color:"#7c3aed",q:2,desc:"Codon optimality paradox and the in vitro → in vivo translational gap.",difficulty:"Expert"},
+  {id:"proteinfolding",name:"Protein Folding & Interaction",color:"#0f766e",q:1,desc:"AlphaFold2 phi-value analysis failure — static structure prediction cannot reproduce folding pathway kinetics.",difficulty:"Unsolved"},
+  {id:"proteindesign",name:"De Novo Protein Design",color:"#be185d",q:1,desc:"RFdiffusion binder design funnel failure — 1% wet-lab attrition rate.",difficulty:"Expert"},
+  {id:"darkgenome",name:"Deciphering the Dark Genome",color:"#1d4ed8",q:1,desc:"Enformer saturation mutagenesis HNF4A gap — TF availability vs sequence-intrinsic regulatory grammar.",difficulty:"Unsolved"},
+  {id:"wholecell",name:"Whole-Cell Digital Twin",color:"#b45309",q:1,desc:"Perturb-seq GEARS accuracy cascade — accuracy collapses for multi-gene perturbations.",difficulty:"Unsolved"},
+  {id:"drugdiscovery",name:"Personalized Drug Discovery",color:"#065f46",q:1,desc:"GDSC osimertinib translational gap — in vitro drug sensitivity predictions fail in clinical trials.",difficulty:"Expert"},
+  {id:"evolution",name:"Predicting Evolutionary Shifts",color:"#9a3412",q:1,desc:"EVEscape BA.2.86 saltational evolution failure — models miss multi-mutation jumps.",difficulty:"Unsolved"},
+  {id:"interactome",name:"Mapping the Human Interactome",color:"#4338ca",q:1,desc:"PPI Park-Marcotte strict split AUROC collapse (0.91→0.61) — diagnosing homology leakage.",difficulty:"Expert"},
+  {id:"tools",name:"Translational Tooling & Apps",color:"#14b8a6",q:8,desc:"Practical, code-generating tools that convert biological data and protocols into usable apps, dashboards, and simulators.",difficulty:"Graduate"},
+  {id:"spatial",name:"Spatial Transcriptomics",color:"#f472b6",q:2,desc:"Spatial gene expression mapping — cell-cell communication, TME architecture, tissue niche analysis.",difficulty:"Expert"},
+  {id:"immuno",name:"Immunology & Repertoire",color:"#34d399",q:2,desc:"TCR/BCR repertoire analysis, clonal expansion, antigen specificity, and vaccine response prediction.",difficulty:"Expert"},
+  {id:"multiomics",name:"Multi-Omics Integration",color:"#fb7185",q:2,desc:"Integrating RNA-seq, ATAC-seq, proteomics to build unified molecular portraits of disease.",difficulty:"Expert"},
 ];
 
 const QS = [
-  {id:1,cat:"rnaseq",pts:60,title:"The Single-Cell Isoform Quantification Wall",tags:["scRNA-seq","isoforms","long-read","nanopore","FLAMES"],
+  {id:1,cat:"rnaseq",pts:60,difficulty:"Expert",title:"The Single-Cell Isoform Quantification Wall",tags:["scRNA-seq","isoforms","long-read","nanopore","FLAMES"],
    prompt:`Build a System: Single-Cell Full-Length Isoform Quantifier\n\nA gene like SCN8A has >200 annotated isoforms — conventional scRNA-seq collapses all to a single gene count. Long-read single-cell methods capture full-length transcripts but produce only ~5,000 cells vs ~5,000,000 for short-read, with 5–10× dropout rate.\n\nTasks:\n1. Computational architecture for single-cell isoform quantification handling dropout\n2. How to leverage multi-modal data (short + long read in same cell)\n3. Probabilistic model for isoform assignment given ambiguous reads\n4. Held-out validation strategy\n5. Minimum per-cell isoform F1 score for clinical utility`},
-  {id:2,cat:"rnaseq",pts:60,title:"Allele-Specific Expression: The Phase Assignment Problem",tags:["ASE","allele-specific","haplotype","dropout","imprinting"],
+  {id:2,cat:"rnaseq",pts:60,difficulty:"Expert",title:"Allele-Specific Expression: The Phase Assignment Problem",tags:["ASE","allele-specific","haplotype","dropout","imprinting"],
    prompt:`Build a System: Single-Cell Allele-Specific Expression Quantifier\n\n~70% of mRNA molecules are not captured, making monoallelic expression indistinguishable from true imprinting vs stochastic dropout.\n\nTasks:\n1. Bayesian model distinguishing biological monoallelic expression from technical dropout\n2. Haplotype phasing strategy using population-level reference panels\n3. Handle the 10× coverage disparity between heterozygous SNP-covered genes vs SNP-free genes\n4. Benchmark distinguishing biological from technical monoallelic expression\n5. Posterior credible interval width for clinical utility in imprinting disorder diagnosis`},
-  {id:3,cat:"metabolic",pts:65,title:"KRAS-PDAC Metabolic Reprogramming via Flux Balance Analysis",tags:["FBA","KRAS","PDAC","Recon3D","metabolic flux"],
+  {id:3,cat:"metabolic",pts:65,difficulty:"Expert",title:"KRAS-PDAC Metabolic Reprogramming via Flux Balance Analysis",tags:["FBA","KRAS","PDAC","Recon3D","metabolic flux"],
    prompt:`Build a System: Constraint-Based Metabolic Model for KRAS-Driven PDAC\n\nKRAS G12D PDAC exhibits dramatic metabolic reprogramming — upregulation of glycolysis, increased glutamine anaplerosis, enhanced macropinocytosis.\n\nTasks:\n1. Pipeline generating a KRAS-G12D-specific metabolic model from Recon3D using RNA-seq constraints\n2. Model the non-canonical amino acid acquisition pathway (macropinocytosis)\n3. Multi-objective flux optimization balancing biomass production with redox homeostasis\n4. Experimental validation distinguishing model predictions from fitting artifacts`},
-  {id:4,cat:"metabolic",pts:65,title:"13C MFA Isotopologue Mismatch & Glutamine Anaplerosis",tags:["13C MFA","isotopologue","glutamine","anaplerosis","TCA cycle"],
+  {id:4,cat:"metabolic",pts:65,difficulty:"Expert",title:"13C MFA Isotopologue Mismatch & Glutamine Anaplerosis",tags:["13C MFA","isotopologue","glutamine","anaplerosis","TCA cycle"],
    prompt:`Build a System: 13C Metabolic Flux Analysis with Isotopologue Resolution\n\nIsotopologue fitting fails when multiple substrate entry points exist simultaneously. Mismatch between measured and model-predicted isotopologues for fumarate and malate exceeds 15% in PDAC cell lines.\n\nTasks:\n1. EMU framework extension handling parallel carbon entry from glucose and glutamine\n2. Resolve the symmetry problem in succinate/fumarate causing isotopologue scrambling\n3. Statistical model for isotopologue measurement uncertainty propagating to flux confidence intervals\n4. Minimum measurement precision to distinguish oxidative vs reductive glutamine anaplerosis`},
-  {id:5,cat:"rna3d",pts:65,title:"RNA Tertiary Structure: The Long-RNA Folding Wall",tags:["RNA 3D","deep learning","long RNA","RMSD","RNA-Puzzles"],
+  {id:5,cat:"rna3d",pts:65,difficulty:"Unsolved",title:"RNA Tertiary Structure: The Long-RNA Folding Wall",tags:["RNA 3D","deep learning","long RNA","RMSD","RNA-Puzzles"],
    prompt:`Build a System: Long-RNA 3D Structure Predictor\n\nCurrent tools collapse to >10Å RMSD on RNAs >200 nt — worse than random secondary structure-constrained assembly on novel-topology targets.\n\nTasks:\n1. Design "RNAFold-L" — deep learning architecture for 200–1000 nt RNA tertiary structure prediction\n2. Training data augmentation overcoming the ~15,000 RNA structure data scarcity\n3. Encode cotranscriptional folding kinetics as a constraint rather than predicting a static structure\n4. Benchmarking suite beyond TM-score capturing biologically relevant accuracy`},
-  {id:6,cat:"rna3d",pts:65,title:"Pseudoknot Prediction: The NP-Hardness Problem",tags:["pseudoknot","NP-hard","RNA folding","H-type","kissing loop"],
+  {id:6,cat:"rna3d",pts:65,difficulty:"Unsolved",title:"Pseudoknot Prediction: The NP-Hardness Problem",tags:["pseudoknot","NP-hard","RNA folding","H-type","kissing loop"],
    prompt:`Build a System: Tractable Pseudoknot-Aware RNA Folding\n\nPseudoknots occur in ~30% of functional RNAs. Minimum free energy folding including pseudoknots is NP-hard. Approximate methods miss >40% of experimentally verified pseudoknots.\n\nTasks:\n1. Practical algorithm for pseudoknot prediction on 50–500 nt sequences\n2. Characterize topologies where approximate methods fail most severely\n3. How to integrate experimental restraints (SHAPE, DMS-MaPseq)\n4. Benchmark distinguishing genuine prediction from overfitting`},
-  {id:7,cat:"rnadesign",pts:65,title:"The In-Cell Riboswitch Design Gap",tags:["riboswitch","SELEX","aptamer","in-cell design","synthetic biology"],
+  {id:7,cat:"rnadesign",pts:65,difficulty:"Unsolved",title:"The In-Cell Riboswitch Design Gap",tags:["riboswitch","SELEX","aptamer","in-cell design","synthetic biology"],
    prompt:`Build a System: In-Cell Functional Riboswitch Designer\n\nSELEX achieves high in vitro affinity for >90% of targets, yet >90% of selected aptamers fail to function as riboswitches in living cells.\n\nTasks:\n1. Computational pipeline predicting in-cell riboswitch function from sequence\n2. Model competition between riboswitch folding and translation initiation complex assembly\n3. High-throughput experimental design capturing in-cell failure modes\n4. Sequence features predicting the in vitro → in-cell transfer failure\n5. In-cell gene regulation dynamic range justifying clinical development`},
-  {id:8,cat:"rnadesign",pts:65,title:"De Novo RNA Design: The Sequence–Function Missing Link",tags:["de novo design","RNA inverse folding","sequence optimization","eterna"],
+  {id:8,cat:"rnadesign",pts:65,difficulty:"Expert",title:"De Novo RNA Design: The Sequence–Function Missing Link",tags:["de novo design","RNA inverse folding","sequence optimization","eterna"],
    prompt:`Build a System: Sequence-to-Function RNA Design Engine\n\nRNA inverse folding achieves >95% success on structures <100 nt, but ~99% of sequences that fold correctly are functionally inactive.\n\nTasks:\n1. Formalize the gap between structural correctness and functional activity as an optimization problem\n2. Generative model jointly optimizing structure AND predicted function\n3. Incorporate evolutionary conservation signals without known homologs\n4. Wet-lab validation pipeline using high-throughput functional assays (FACS-seq, Sort-seq)\n5. Realistic performance ceiling for computational RNA design`},
-  {id:9,cat:"rnainteract",pts:65,title:"RBP Binding Generalization Across Cell Types",tags:["RBP","eCLIP","binding sites","cell-type","generalization"],
+  {id:9,cat:"rnainteract",pts:65,difficulty:"Expert",title:"RBP Binding Generalization Across Cell Types",tags:["RBP","eCLIP","binding sites","cell-type","generalization"],
    prompt:`Build a System: Cell-Type-Generalizable RBP Binding Predictor\n\nRBP binding site predictors achieve AUC >0.90 within HepG2/K562, but only 38% of predicted binding sites are conserved in primary cell types.\n\nTasks:\n1. Diagnose primary sources of RBP binding site non-transferability across cell types\n2. Model architecture incorporating cell-type-specific features beyond sequence motifs\n3. Use cross-species eCLIP data to identify conserved vs cell-type-specific binding mechanisms\n4. Minimal experimental dataset maximally improving generalization\n5. Define a generalization benchmark avoiding data leakage`},
-  {id:10,cat:"rnainteract",pts:65,title:"Stress Granule Condensation: The mRNA Sorting Problem",tags:["stress granules","phase separation","mRNA localization","condensate","IDR"],
+  {id:10,cat:"rnainteract",pts:65,difficulty:"Expert",title:"Stress Granule Condensation: The mRNA Sorting Problem",tags:["stress granules","phase separation","mRNA localization","condensate","IDR"],
    prompt:`Build a System: mRNA Stress Granule Partitioning Predictor\n\nDuring stress, ~10% of cytoplasmic mRNAs condense into stress granules. Current models predict SG partitioning with AUC ~0.65 — barely better than random.\n\nTasks:\n1. Identify key sequence and structural features predicting SG partitioning\n2. Dynamic model capturing how partitioning changes over the stress response timeline (0–60 min)\n3. Experimental design generating ground truth data distinguishing true condensate partitioning from artifacts\n4. Perturbation strategy to determine causal vs correlative features\n5. What prediction accuracy would enable targeting SG dynamics in ALS or cancer?`},
-  {id:11,cat:"rnafunc",pts:65,title:"lncRNA Sequence-to-Mechanism Black Box",tags:["lncRNA","mechanism","chromatin","phase separation","CHART-seq"],
+  {id:11,cat:"rnafunc",pts:65,difficulty:"Unsolved",title:"lncRNA Sequence-to-Mechanism Black Box",tags:["lncRNA","mechanism","chromatin","phase separation","CHART-seq"],
    prompt:`Build a System: lncRNA Functional Mechanism Predictor\n\nOver 100,000 human lncRNAs have been catalogued, yet fewer than 500 have mechanistically characterized functions. Computational approaches predict lncRNA function with precision <20%.\n\nTasks:\n1. Multi-modal model integrating sequence, secondary structure, chromatin association, and protein interaction data\n2. Handle the extreme class imbalance (99.5% uncharacterized)\n3. Prioritization strategy identifying the ~100 highest-impact uncharacterized lncRNAs\n4. Minimal experimental assay panel to mechanistically classify a lncRNA in 2 weeks\n5. What predictions would count as genuine mechanistic understanding?`},
-  {id:12,cat:"rnafunc",pts:60,title:"The circRNA Translation Controversy",tags:["circRNA","IRES","translation","cap-independent","artifact"],
+  {id:12,cat:"rnafunc",pts:60,difficulty:"Expert",title:"The circRNA Translation Controversy",tags:["circRNA","IRES","translation","cap-independent","artifact"],
    prompt:`Resolve the Controversy: Does Circular RNA Get Translated in Human Cells?\n\nMultiple studies claim cap-independent translation via IRES elements produces functional peptides. Skeptics argue >95% of reported events are artifacts.\n\nTasks:\n1. Computational framework distinguishing genuine circRNA-derived peptides from artifacts\n2. What bioinformatic controls are missing from current studies?\n3. Definitive experimental design to settle this controversy\n4. If real, what sequence features predict which circRNAs are translated?\n5. What functional significance would circRNA-derived peptides have if confirmed?`},
-  {id:13,cat:"mrnadesign",pts:65,title:"The Codon Optimality Paradox",tags:["codon optimization","mRNA stability","translation speed","ribosome pausing","therapeutic mRNA"],
+  {id:13,cat:"mrnadesign",pts:65,difficulty:"Expert",title:"The Codon Optimality Paradox",tags:["codon optimization","mRNA stability","translation speed","ribosome pausing","therapeutic mRNA"],
    prompt:`Build a System: Codon-Optimized mRNA Therapeutic Designer\n\nMaximum CAI optimization maximizes translation speed but reduces mRNA stability and increases immunogenicity. The optimal trade-off varies by protein, cell type, and therapeutic goal.\n\nTasks:\n1. Formalize the codon optimality trade-off as a multi-objective optimization problem\n2. Sequence-to-outcome model predicting protein yield, mRNA half-life, and immune activation jointly\n3. Incorporate ribosome pausing data to identify positions where pausing aids protein folding\n4. High-throughput experimental design generating training data across codon usage landscape\n5. For a given therapeutic target, what is the optimal design workflow?`},
-  {id:14,cat:"mrnadesign",pts:65,title:"The In Vitro → In Vivo mRNA Translation Gap",tags:["mRNA therapeutics","LNP delivery","in vivo translation","immunogenicity","pseudouridine"],
+  {id:14,cat:"mrnadesign",pts:65,difficulty:"Expert",title:"The In Vitro → In Vivo mRNA Translation Gap",tags:["mRNA therapeutics","LNP delivery","in vivo translation","immunogenicity","pseudouridine"],
    prompt:`Build a System: In Vivo mRNA Translation Predictor\n\nmRNA therapeutic development suffers a 60% failure rate at the in vitro → animal model translation step. In vitro efficiency correlates weakly with in vivo protein expression after LNP delivery.\n\nTasks:\n1. Identify the top 3 mechanistic sources of the in vitro → in vivo prediction failure\n2. Multi-compartment pharmacokinetic model for mRNA from LNP injection to protein production\n3. Use existing NHP pharmacokinetic datasets to calibrate a predictive model\n4. Cell-based assay panel better proxying in vivo translation\n5. What minimum improvement would justify switching from current screening paradigms?`},
-  {id:15,cat:"proteinfolding",pts:70,title:"AlphaFold2 Phi-Value Analysis Failure",tags:["AlphaFold2","phi-value","folding kinetics","transition state"],
+  {id:15,cat:"proteinfolding",pts:70,difficulty:"Unsolved",title:"AlphaFold2 Phi-Value Analysis Failure",tags:["AlphaFold2","phi-value","folding kinetics","transition state"],
    prompt:`Build a System: Folding Pathway Kinetics Predictor\n\nAlphaFold2 completely fails to reproduce phi-value analysis data. For CI2, AF2 pLDDT confidence scores show zero correlation with experimental phi-values.\n\nTasks:\n1. Why does structural accuracy not imply folding pathway predictability? Formalize the gap.\n2. Neural network architecture trained on phi-value data predicting transition state ensemble properties\n3. Molecular simulation approach generating training data for rare folding transition events\n4. Define a benchmark: what experimental measurements validate a folding pathway predictor?\n5. Which protein families represent the hardest test cases and why?`},
-  {id:16,cat:"proteindesign",pts:70,title:"RFdiffusion Binder Design Funnel Failure",tags:["RFdiffusion","protein binder","wet-lab validation","ProteinMPNN","computational design"],
+  {id:16,cat:"proteindesign",pts:70,difficulty:"Expert",title:"RFdiffusion Binder Design Funnel Failure",tags:["RFdiffusion","protein binder","wet-lab validation","ProteinMPNN","computational design"],
    prompt:`Build a System: High-Fidelity Protein Binder Design Pipeline\n\nRFdiffusion generates designs with predicted pLDDT >0.85, yet experimental success rates remain at 1–5%. The funnel fails because predicted binding scores don't capture conformational entropy, solubility, and expression yield.\n\nTasks:\n1. Diagnose why in silico binding metrics fail to predict wet-lab success\n2. Screening cascade maximally enriching true binders before expensive SPR validation\n3. How to integrate experimental feedback from failed designs\n4. Minimum viable experimental assay screening 1,000 designs per week\n5. What success rate would make RFdiffusion-based design cost-competitive with antibody discovery?`},
-  {id:17,cat:"darkgenome",pts:70,title:"Enformer Saturation Mutagenesis HNF4A Gap",tags:["Enformer","regulatory grammar","saturation mutagenesis","HNF4A","TF binding","MPRA"],
+  {id:17,cat:"darkgenome",pts:70,difficulty:"Unsolved",title:"Enformer Saturation Mutagenesis HNF4A Gap",tags:["Enformer","regulatory grammar","saturation mutagenesis","HNF4A","TF binding","MPRA"],
    prompt:`Build a System: Regulatory Grammar Decoder for Non-Coding Variants\n\nEnformer predicts gene expression with R²=0.81 on bulk data. Yet for HNF4A target genes, saturation mutagenesis predictions correlate with MPRA measurements at only R²=0.34.\n\nTasks:\n1. Mechanistically explain why sequence-to-expression models fail at saturation mutagenesis despite good bulk accuracy\n2. Model architecture explicitly parameterizing TF binding site grammar\n3. Disentangle TF availability from sequence-intrinsic regulatory logic in training data\n4. MPRA experimental design maximally informing regulatory grammar learning\n5. What prediction task would constitute solving this problem?`},
-  {id:18,cat:"wholecell",pts:75,title:"Perturb-seq GEARS Multi-Gene Prediction Collapse",tags:["Perturb-seq","GEARS","genetic interaction","multi-gene perturbation","digital twin"],
+  {id:18,cat:"wholecell",pts:75,difficulty:"Unsolved",title:"Perturb-seq GEARS Multi-Gene Prediction Collapse",tags:["Perturb-seq","GEARS","genetic interaction","multi-gene perturbation","digital twin"],
    prompt:`Build a System: Multi-Gene Perturbation Response Predictor\n\nGEARS predicts single-gene perturbation responses with R²=0.68, but R² collapses to 0.31 for double-gene and 0.09 for triple-gene perturbations.\n\nTasks:\n1. Mathematical reason why single-gene prediction accuracy does not compose to multi-gene accuracy\n2. Model architecture explicitly representing gene-gene interaction networks\n3. How much Perturb-seq data is required to achieve R²>0.60 for triple perturbations?\n4. Data acquisition strategy maximally informing multi-gene interaction modeling with a fixed sequencing budget\n5. What biological applications would become possible if triple-gene prediction achieved R²>0.70?`},
-  {id:19,cat:"drugdiscovery",pts:70,title:"GDSC Osimertinib Translational Gap",tags:["GDSC","drug sensitivity","osimertinib","EGFR","translational failure","PDO"],
+  {id:19,cat:"drugdiscovery",pts:70,difficulty:"Expert",title:"GDSC Osimertinib Translational Gap",tags:["GDSC","drug sensitivity","osimertinib","EGFR","translational failure","PDO"],
    prompt:`Build a System: Translational Drug Sensitivity Predictor\n\nOsimertinib shows AUC=0.89 in GDSC, yet clinical trial response rate in EGFR-mutant NSCLC is only 59–80%, with primary resistance in ~20% of patients.\n\nTasks:\n1. Diagnose primary sources of the in vitro → clinical translational gap for osimertinib\n2. Multi-omics feature selection pipeline identifying translational biomarkers beyond EGFR mutation\n3. How would patient-derived organoid data be integrated?\n4. Clinical trial biomarker strategy: what co-mutation panel would stratify patients?\n5. What prediction performance on PDX data would justify a biomarker-stratified Phase II trial?`},
-  {id:20,cat:"evolution",pts:70,title:"EVEscape BA.2.86 Saltational Evolution Failure",tags:["EVEscape","viral evolution","BA.2.86","saltational","epistasis","escape prediction"],
+  {id:20,cat:"evolution",pts:70,difficulty:"Unsolved",title:"EVEscape BA.2.86 Saltational Evolution Failure",tags:["EVEscape","viral evolution","BA.2.86","saltational","epistasis","escape prediction"],
    prompt:`Build a System: Saltational Viral Evolution Predictor\n\nEVEscape performs well for incremental variants (1–5 mutations) but completely failed to predict BA.2.86 — a variant with 36 mutations emerging in a single saltational jump.\n\nTasks:\n1. Formally define why saltational evolution is mechanistically different from incremental evolution\n2. Design a model predicting fitness and immune escape for variants with 10–50 simultaneous mutations\n3. What training data would teach a model about epistatic interactions at this scale?\n4. Use phylogenetic reconstruction of chronic infection trajectories to identify likely saltational jump precursors\n5. Define a prospective validation scheme`},
-  {id:21,cat:"interactome",pts:70,title:"PPI Prediction: Homology Leakage & True Generalization",tags:["PPI","protein-protein interaction","AUROC","homology leakage","AlphaFold-Multimer","Y2H"],
+  {id:21,cat:"interactome",pts:70,difficulty:"Unsolved",title:"PPI Prediction: Homology Leakage & True Generalization",tags:["PPI","protein-protein interaction","AUROC","homology leakage","AlphaFold-Multimer","Y2H"],
    prompt:`Build a System: Truly Generalizing Protein–Protein Interaction Predictor\n\nPPI predictors achieve AUROC >0.91 on standard benchmarks, yet the Park-Marcotte strict homology-split evaluation reveals AUROC collapses to 0.61 — barely above random.\n\nTasks:\n1. Quantify how much of current PPI prediction performance is explained by homology leakage\n2. Design a model architecture predicting PPIs from structural/biophysical features independent of sequence similarity\n3. How would you generate a training dataset with genuine diversity at the protein family level?\n4. Propose a prospective experimental validation pipeline using Y2H or co-IP-MS\n5. What AUROC on a strict-split benchmark would indicate genuine progress?`},
 
   /* ── TRANSLATIONAL TOOLING & APPS (8) ── */
-  {id:22,cat:"tools",pts:55,title:"Cell-Type Deconvolution Dashboard for Bulk RNA-seq",
+  {id:22,cat:"tools",pts:55,difficulty:"Graduate",title:"Cell-Type Deconvolution Dashboard for Bulk RNA-seq",
    tags:["bulk RNA-seq","deconvolution","CIBERSORTx","Bayesian","uncertainty"],
    prompt:`Build a Tool: Robust Cell-Type Deconvolution Engine with UI\n\nBulk RNA-seq remains vastly cheaper than single-cell, but inferring cell-type composition from bulk data is still fragile. Existing tools (CIBERSORTx, MuSiC, SCDC) can disagree by >20% absolute fraction on the same sample when reference panels are imperfect or missing relevant cell types.\n\nYour tasks:\n1. Design a deconvolution model that takes bulk RNA-seq + single-cell reference and returns cell-type proportions with calibrated uncertainty (credible intervals).\n2. How will you make the method robust when the reference is missing some cell types or has strong batch effects relative to the bulk?\n3. Propose an API and UI: user uploads bulk counts + reference matrix and receives a report with estimates, uncertainties, and diagnostics (e.g., residual structure, outlier genes).\n4. Define a benchmarking suite using public datasets where ground-truth cell-type proportions are partially known (e.g., mixtures, FACS, spike-ins).\n5. What minimum error (mean absolute deviation per cell type) is necessary for this tool to be useful in disease-cohort studies?\n6. Generate working Python code implementing a minimal version of this deconvolution tool using Non-Negative Least Squares as a baseline.`},
 
-  {id:23,cat:"tools",pts:60,title:"Multi-Omics Patient Stratification App",
+  {id:23,cat:"tools",pts:60,difficulty:"Graduate",title:"Multi-Omics Patient Stratification App",
    tags:["multi-omics","clustering","patient stratification","MOFA","biomarkers"],
    prompt:`Build a Tool: Multi-Omics Disease Stratifier\n\nMany disease cohorts now have RNA-seq, proteomics, and clinical variables, but integrating them into stable patient subtypes is difficult. Different clustering methods and normalization choices can produce entirely different subtype assignments.\n\nYour tasks:\n1. Design a pipeline that takes multi-omics matrices (RNA, proteome, clinical) and outputs patient clusters with stability scores across methods and subsampling.\n2. Propose a representation-learning approach (e.g., multi-view autoencoder, MOFA-like factor model) that captures shared and modality-specific structure.\n3. Describe how the UI or notebook interface exposes: (a) cluster assignments, (b) top features/biomarkers per cluster, and (c) robustness diagnostics.\n4. Define a benchmarking plan using at least two public cohorts (e.g., TCGA, CPTAC) with known subtypes.\n5. What minimum silhouette score and subtype-survival association strength would indicate clinically meaningful stratification?\n6. Generate working Python code (pandas + sklearn + plotly) implementing a simple two-omics integration pipeline with UMAP visualization.`},
 
-  {id:24,cat:"tools",pts:55,title:"Differential Expression Analysis Pipeline Builder",
+  {id:24,cat:"tools",pts:55,difficulty:"Graduate",title:"Differential Expression Analysis Pipeline Builder",
    tags:["DEG","edgeR","DESeq2","volcano plot","batch correction"],
    prompt:`Build a Tool: One-Click Differential Expression Analysis App\n\nDEG analysis is the most common task in biology yet it is full of hidden pitfalls: wrong normalization, ignored batch effects, multiple-testing errors, and p-value misinterpretation. Most biologists still run DESeq2 or edgeR without understanding what they output or when each is appropriate.\n\nYour tasks:\n1. Design a guided pipeline app: user uploads a count matrix + metadata CSV and gets a full DEG report with volcano plot, heatmap, and GO enrichment.\n2. How would you automatically detect and flag batch effects, low-count genes, outlier samples, and dispersion estimation failures before running DE?\n3. Explain when to use DESeq2 vs edgeR vs limma-voom in plain English — build this as an automated decision tree in the app.\n4. Propose plain-language explanations for all statistical outputs: what does a log2 fold-change of 2 actually mean biologically?\n5. Design the "export report" feature: what should a non-computational biologist receive as output?\n6. Generate complete working Python code using PyDeseq2 that runs DEG analysis on synthetic count data and outputs a volcano plot.`},
 
-  {id:25,cat:"tools",pts:55,title:"Survival Analysis & Kaplan-Meier Dashboard",
+  {id:25,cat:"tools",pts:55,difficulty:"Graduate",title:"Survival Analysis & Kaplan-Meier Dashboard",
    tags:["survival analysis","Kaplan-Meier","Cox regression","clinical data","biomarker"],
    prompt:`Build a Tool: Clinical Survival Analysis App for Biologists\n\nKaplan-Meier curves and Cox proportional hazards models are the workhorses of clinical biomarker analysis, but most biologists run them without checking assumptions, handling censoring correctly, or interpreting hazard ratios properly.\n\nYour tasks:\n1. Design an app where a clinician uploads a spreadsheet with patient survival times, event status, and biomarker columns — and receives fully annotated Kaplan-Meier plots and Cox regression outputs.\n2. How would you automatically check and flag Cox model assumption violations (proportional hazards, linearity of continuous variables) in plain language for the user?\n3. Design a biomarker cutpoint selection module that avoids the "optimal cutpoint" p-hacking trap — propose a statistically valid approach.\n4. What plain-English annotations would make hazard ratio forest plots interpretable to a bench biologist?\n5. Define a benchmarking plan using public clinical datasets (e.g., TCGA survival data) where known prognostic biomarkers can be reproduced.\n6. Generate complete working Python code using lifelines that produces annotated Kaplan-Meier plots with log-rank p-values on synthetic patient data.`},
 
-  {id:26,cat:"tools",pts:60,title:"Protein Structure Viewer & Variant Impact Annotator",
+  {id:26,cat:"tools",pts:60,difficulty:"Graduate",title:"Protein Structure Viewer & Variant Impact Annotator",
    tags:["protein structure","AlphaFold2","variant annotation","missense","PyMOL"],
    prompt:`Build a Tool: Interactive Protein Structure + Variant Impact App\n\nBiologists routinely need to visualize protein structures and understand what a missense variant does to protein stability and function, but existing tools (PyMOL, ChimeraX) require expertise, and variant effect predictors (SIFT, PolyPhen, EVE) give opaque scores without structural context.\n\nYour tasks:\n1. Design a web app where a user enters a protein name or UniProt ID + optional variant list (e.g., V600E) and receives: (a) an interactive 3D structure viewer, (b) variant positions highlighted, (c) plain-English impact predictions from multiple tools combined.\n2. How would you integrate AlphaFold2 structure predictions for proteins lacking experimental structures, and clearly communicate prediction confidence to the user?\n3. Propose a "variant impact score" that aggregates conservation (EVE), structure perturbation (FoldX ΔΔG), and functional site proximity into a single interpretable score.\n4. Design the UI for a biologist with no structural biology training — what does the tooltip say when they hover over a highlighted residue?\n5. Generate working Python code using py3Dmol (for Jupyter) that fetches a protein from AlphaFold DB and highlights user-specified variant positions with color-coded impact scores.`},
 
-  {id:27,cat:"tools",pts:65,title:"CRISPR Guide RNA Designer & Off-Target Predictor",
+  {id:27,cat:"tools",pts:65,difficulty:"Expert",title:"CRISPR Guide RNA Designer & Off-Target Predictor",
    tags:["CRISPR","sgRNA","off-target","Cas9","genome editing"],
    prompt:`Build a Tool: End-to-End CRISPR gRNA Design Suite\n\nDesigning CRISPR experiments requires choosing guide RNAs, predicting on-target efficiency and off-target sites, and interpreting editing outcomes — each step has multiple competing tools that disagree substantially, confusing non-expert users.\n\nYour tasks:\n1. Design a pipeline app where a user enters a target gene name or genomic coordinates and receives a ranked list of guide RNAs with on-target efficiency scores (Rule Set 2, DeepCRISPR), off-target predictions (Cas-OFFinder, CRISPOR), and positional context.\n2. How would you present off-target risk in plain language? Design a risk-stratification display that distinguishes "safe for cell line use" from "not safe for therapeutic use".\n3. Propose a pooled screen gRNA library design module: user specifies a gene list and receives a library design with controls, with statistical power estimates for the planned screen.\n4. How would you handle the diversity of Cas variants (Cas9, Cas12a, base editors, prime editors) in a unified UI?\n5. Design the "results report" that a biologist sends to their core facility ordering custom oligos.\n6. Generate working Python code that uses the Biopython library and a precomputed off-target scoring model to design and rank guide RNAs for a user-specified sequence.`},
 
-  {id:28,cat:"tools",pts:60,title:"Single-Cell RNA-seq Interactive Explorer",
+  {id:28,cat:"tools",pts:60,title:"Single-Cell RNA-seq Interactive Explorer",difficulty:"Expert",
    tags:["scRNA-seq","UMAP","Seurat","Scanpy","cell annotation","trajectory"],
    prompt:`Build a Tool: No-Code Single-Cell Analysis & Visualization App\n\nSingle-cell RNA-seq analysis requires running Seurat or Scanpy pipelines that produce dozens of UMAP plots and cluster markers — but biologists without coding experience cannot explore the data interactively or annotate clusters confidently.\n\nYour tasks:\n1. Design an app where a user uploads a processed single-cell object (h5ad or Seurat RDS) and can: (a) browse UMAP/t-SNE embeddings, (b) query gene expression overlays, (c) compare clusters side-by-side, (d) export publication figures.\n2. Propose an automated cell-type annotation module using marker gene databases (PanglaoDB, CellMarker) that presents confidence scores and lets users override annotations.\n3. How would you handle trajectory inference (pseudotime) — design a UI that presents RNA velocity or PAGA results in a way that makes biological sense to a bench scientist.\n4. Design the "doublet and quality filter" wizard that guides a non-expert through QC decisions with plain-English explanations at each step.\n5. What would a "biology-ready export" look like — define the figure set, metadata tables, and statistical summaries that get auto-generated for a manuscript?\n6. Generate working Python code using Scanpy that loads an h5ad file, performs UMAP, finds marker genes per cluster, and exports annotated plots.`},
 
-  {id:29,cat:"tools",pts:65,title:"Metabolic Pathway Simulator & Flux Visualizer",
+  {id:29,cat:"tools",pts:65,title:"Metabolic Pathway Simulator & Flux Visualizer",difficulty:"Expert",
    tags:["metabolomics","flux","pathway analysis","KEGG","COBRApy","simulation"],
    prompt:`Build a Tool: Interactive Metabolic Pathway Simulation Dashboard\n\nMetabolomics data is hard to interpret because metabolite levels reflect both enzyme activity and substrate availability. Biologists need to go from a list of metabolite fold-changes to a mechanistic understanding of which pathways are perturbed and in which direction.\n\nYour tasks:\n1. Design an app where a user uploads a metabolomics results table (metabolite names + fold-changes + p-values) and receives: (a) enriched KEGG/HMDB pathway maps with fold-changes overlaid, (b) flux predictions using simple stoichiometric constraints, (c) plain-English interpretation of which metabolic nodes are bottlenecks.\n2. How would you handle the missing metabolite problem — many pathways have only 2–3 of 10 metabolites measured? Design a statistical approach that accounts for partial pathway coverage.\n3. Propose a "what-if" simulation module where the user can knock out a specific enzyme in the model and see predicted downstream metabolite changes.\n4. Design the UI for presenting isotopologue data (13C labeling) alongside regular metabolomics — what does the combined visualization look like?\n5. Define a benchmarking plan using public metabolomics datasets (e.g., Metabolights, MetabolomicsWorkbench) where known pathway perturbations can be reproduced.\n6. Generate working Python code using COBRApy that loads a genome-scale metabolic model, applies simple RNA-seq-based constraints, and visualizes predicted flux changes on a simplified TCA cycle diagram.`},
+
+  /* ═══ SPATIAL TRANSCRIPTOMICS ═══ */
+  {id:30,cat:"spatial",pts:70,title:"Spatial Cell-Cell Communication from Visium Data",difficulty:"Expert",
+   tags:["spatial transcriptomics","Visium","cell-cell communication","ligand-receptor","CellChat"],
+   prompt:`Build a System: Spatial Ligand-Receptor Communication Mapper\n\nVisium and Xenium spatial transcriptomics data captures gene expression with tissue coordinates, but inferring which cells are actually communicating requires integrating expression levels with spatial proximity — most tools ignore distance entirely.\n\nTasks:\n1. Design a pipeline that infers spatially-constrained cell-cell communication: which ligand-receptor pairs (from CellChat or NicheNet databases) are active between adjacent tissue niches?\n2. How do you define "adjacent" — propose a distance metric that accounts for cell size, tissue type, and signal diffusion range for secreted vs membrane-bound ligands.\n3. Build a statistical model distinguishing genuine spatial co-expression from random co-occurrence — what is your null model?\n4. Propose visualization: how do you show a communication network overlaid on a tissue section in a way that a pathologist can interpret?\n5. Benchmarking strategy: use published Visium datasets (e.g. 10x Genomics Human Heart, HTAN) to validate predicted communications against known biology.\n6. Generate Python code using squidpy that loads Visium data, computes spatial neighbors, and scores ligand-receptor interactions.`},
+
+  {id:31,cat:"spatial",pts:70,title:"Resolving Tumor Microenvironment Architecture from Spatial Data",difficulty:"Unsolved",
+   tags:["tumor microenvironment","spatial","immune infiltration","spatial clustering","MERFISH"],
+   prompt:`Build a System: TME Architecture Deconvolution from Spatial Transcriptomics\n\nTumors are spatially heterogeneous — immune-cold cores surrounded by immune-hot borders — but bulk RNA-seq collapses this architecture into one average. Spatial transcriptomics can in principle map the TME at single-cell resolution, but computational methods for quantifying spatial immune architecture are immature.\n\nTasks:\n1. Define a computational framework for classifying spatial immune patterns: immune-excluded, immune-desert, immune-inflamed — with quantitative boundaries not just qualitative labels.\n2. Design a method to link spatial immune architecture to clinical outcomes using TCGA survival data as ground truth.\n3. How do you handle the resolution gap — Visium spots contain 1-10 cells, MERFISH has single-cell resolution but covers fewer genes. Propose a multi-resolution integration strategy.\n4. Predict which spatial features (immune cluster density, distance from tumor border, stromal barrier width) are most predictive of checkpoint inhibitor response.\n5. Identify the top 3 ways this approach will fail in FFPE archival tissue vs fresh frozen, and how to mitigate each.\n6. Generate Python code that takes a Visium AnnData object, deconvolves cell types using RCTD or cell2location, and plots immune density maps.`},
+
+  /* ═══ IMMUNOLOGY & REPERTOIRE ═══ */
+  {id:32,cat:"immuno",pts:68,title:"TCR Clonal Expansion and Antigen Specificity Prediction",difficulty:"Expert",
+   tags:["TCR","repertoire","clonal expansion","antigen specificity","GLIPH2","deep learning"],
+   prompt:`Build a System: TCR Repertoire Analyzer and Antigen Specificity Predictor\n\nT cell receptor (TCR) sequencing generates millions of unique CDR3 sequences per patient — but predicting which TCR clones recognize which antigens requires pattern recognition across an astronomically large sequence space.\n\nTasks:\n1. Design a pipeline from raw TCR-seq FASTQ to a ranked list of expanded clones, with statistical significance accounting for the power-law distribution of clone sizes.\n2. Implement a specificity grouping algorithm (GLIPH2-style) that clusters TCRs likely recognizing the same epitope — what sequence features drive clustering decisions?\n3. How would you integrate with known TCR-pMHC databases (VDJdb, McPAS-TCR, IEDB) to annotate clones with likely antigen specificities?\n4. Propose a deep learning architecture (e.g. TCR-BERT or ESM-based) for zero-shot specificity prediction on TCRs not in any database.\n5. Design a validation experiment: if you predict clone X recognizes peptide Y, what wet-lab assay (tetramer staining, T cell activation assay) confirms it with what sensitivity?\n6. Generate Python code using scirpy that loads 10x Chromium VDJ data, analyzes clonotype expansion, and visualizes the top 20 expanded clones.`},
+
+  {id:33,cat:"immuno",pts:65,title:"Vaccine Response Prediction from Baseline Immune Profiling",difficulty:"Graduate",
+   tags:["vaccine","immune response","systems vaccinology","baseline prediction","PBMC","IgG"],
+   prompt:`Build a System: Pre-Vaccination Immune State Predictor of Antibody Response\n\nSystems vaccinology has shown that baseline immune gene expression (day 0) can predict peak antibody titers (day 28) for influenza and yellow fever vaccines — but the predictive signatures differ across vaccines, cohorts, and measurement platforms.\n\nTasks:\n1. Design a machine learning pipeline that takes baseline PBMC transcriptomics (bulk or single-cell) and predicts day-28 IgG titer as a continuous variable — what features matter most?\n2. How do you handle the confounders: age, sex, prior vaccination history, baseline antibody titers, BMI? Propose a covariate adjustment strategy.\n3. Identify the minimum gene set (biomarker panel) that retains ≥80% of prediction accuracy — what is the trade-off between panel size and clinical deployability?\n4. Propose a transfer learning strategy: a model trained on influenza vaccine cohorts — how much does it transfer to COVID-19 mRNA vaccine response prediction?\n5. Benchmark against published signatures (Nakaya et al. 2011 PMID:21743478) — what does your model add beyond existing work?\n6. Generate Python code using scikit-learn that builds a LASSO regression predictor of antibody response from gene expression, with LOOCV validation.`},
+
+  /* ═══ MULTI-OMICS INTEGRATION ═══ */
+  {id:34,cat:"multiomics",pts:72,title:"Integrating scRNA-seq and scATAC-seq to Map Gene Regulatory Networks",difficulty:"Expert",
+   tags:["multi-omics","scATAC-seq","gene regulatory network","chromatin accessibility","ArchR","Seurat v5"],
+   prompt:`Build a System: Single-Cell Multi-Omics Gene Regulatory Network Mapper\n\nSingle-cell ATAC-seq maps open chromatin and inferred TF binding, while scRNA-seq measures gene expression — but jointly profiling the same cells (10x Multiome) is expensive and linking them computationally (diagonal integration) introduces errors that propagate into downstream GRN inference.\n\nTasks:\n1. Design a diagonal integration pipeline (WNN, Seurat v5, or GLUE) that links unpaired scRNA-seq and scATAC-seq from the same cell type — how do you validate the cell-cell matching quality?\n2. Infer a gene regulatory network: from open peaks → TF motifs → target genes → expression. What are the error rates at each arrow, and how do they compound?\n3. How do you distinguish direct TF binding from indirect regulatory effects across 3+ steps in the regulatory hierarchy?\n4. Propose a perturbation experiment (CRISPRi of candidate TFs) that validates the top 5 predicted regulatory edges — what effect size and replicates are needed?\n5. Handle the dimensionality mismatch: scATAC-seq peaks (500K features) vs scRNA-seq genes (30K) — what dimensionality reduction preserves biologically relevant signal?\n6. Generate Python code using ArchR and scanpy that processes scATAC-seq data, identifies peak-to-gene links, and visualizes the top TF regulators per cluster.`},
+
+  {id:35,cat:"multiomics",pts:75,title:"Proteogenomics: Linking Somatic Mutations to Protein Abundance Changes",difficulty:"Unsolved",
+   tags:["proteogenomics","CPTAC","somatic mutations","protein abundance","trans-effects","mass spectrometry"],
+   prompt:`Build a System: Proteogenomic Trans-Effect Mapper\n\nThe CPTAC consortium has shown that only ~40% of copy number alterations in cancer have detectable effects on protein levels (CNV-protein correlation) — the remaining 60% are buffered by post-translational mechanisms. This trans-proteogenomic buffering is poorly understood and limits the use of genomics to predict protein-level drug targets.\n\nTasks:\n1. Design a statistical framework that tests, for each somatic mutation, whether it significantly alters protein abundance in cis (same gene) and in trans (other proteins) — how do you control for the multiple testing burden across 10,000 proteins × 1,000 mutations?\n2. Build a classifier that predicts which CNVs will be protein-level buffered vs amplified — what genomic, epigenomic, and protein stability features are most predictive?\n3. Identify protein complexes that buffer CNV-to-protein effects — propose a network propagation method that assigns each CNV a "buffering score" based on the protein interaction network topology.\n4. How do you handle the measurement challenges: LC-MS/MS protein quantification has 20-30% missing values per sample, and protein dynamic range spans 6 orders of magnitude.\n5. Propose an experimental validation: if your model predicts mutation X buffers protein Y, what mass spectrometry experiment with what sample size confirms this?\n6. Generate Python code that loads CPTAC proteomics and genomics data, computes CNV-protein correlations, and identifies the top 20 buffered and amplified CNV-protein pairs.`},
 ];
 
 const MODELS = [
@@ -174,34 +204,214 @@ const MODELS = [
 ];
 
 const AGENTS = [
-  {id:"gpt4o",name:"GPT-4o",color:"#10b981",lens:"Experimental Feasibility",
-   sys:"You are an expert experimental biologist. Analyze biology problems from an EXPERIMENTAL FEASIBILITY perspective: measurement challenges, assay design, calibration, batch effects, throughput, practical constraints. Be specific — cite numbers, protocols, timelines. Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"dsr1",name:"DeepSeek R1",color:"#06b6d4",lens:"Mathematical Formalization",
-   sys:"You are a computational biologist. Analyze biology problems through MATHEMATICAL FORMALIZATION: statistical models, probabilistic frameworks, algorithmic complexity, information-theoretic bounds. Avoid unexplained symbols — explain every term in plain English. Be specific about performance bounds. Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"c35",name:"Claude 3.5 Sonnet",color:"#f59e0b",lens:"Mechanistic Biology",
-   sys:"You are a molecular biologist. Analyze biology problems through MECHANISTIC REASONING: identify two competing mechanistic explanations, explain perturbation experiments that distinguish them, focus on causal mechanisms and orthogonal validation. Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"gem15",name:"Gemini 1.5 Pro",color:"#8b5cf6",lens:"Systems Engineering",
-   sys:"You are a systems engineer. Analyze biology problems through PIPELINE INTEGRATION: where do biological AI pipelines break at the system level? What is the gap between benchmark performance and real-world utility? Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"o1",name:"o1 Reasoning",color:"#e879f9",lens:"First-Principles Reasoning",
-   sys:"You are a deep reasoning engine analyzing biology problems through FIRST-PRINCIPLES LOGIC. Break each problem down to its irreducible constraints: what is the fundamental physical, chemical, or information-theoretic barrier? What would need to be true for the problem to be solvable? Use **bold** for key claims. Avoid jargon — explain everything from the ground up. Keep under 260 words. End with one concrete next step."},
-  {id:"med",name:"Med-PaLM",color:"#f97316",lens:"Clinical Translation",
-   sys:"You are a physician-scientist. Analyze biology problems from a CLINICAL TRANSLATION perspective: what is the unmet clinical need, how far are we from a diagnostic or therapeutic application, what regulatory hurdles exist, and what patient population benefits first? Speak practically — what would a clinician or clinical trialist need to see? Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"evo",name:"ESM-3 / Evo",color:"#84cc16",lens:"Evolutionary & Sequence Biology",
-   sys:"You are an evolutionary biologist and protein/RNA language model expert. Analyze biology problems through EVOLUTIONARY AND SEQUENCE-LEVEL REASONING: what does evolution tell us about the constraints on this problem? What conservation, coevolution, or phylogenetic signal is available? How do large biological language models (ESM-3, Evo, RNA-FM) address or fail to address this problem? Use **bold** for key claims. Keep under 260 words. End with one concrete next step."},
-  {id:"a007",name:"Agent 007",color:"#ff2d55",lens:"Phylogenetic & Multi-Scale Integration",
-   sys:"You are Agent 007 — a specialized phylogenomic intelligence agent inspired by BioMNI Lab's Phylo system. Your unique perspective: PHYLOGENETIC AND MULTI-SCALE INTEGRATION. You analyze biology problems by integrating evolutionary history, cross-species genomic comparisons, and multi-scale biological data (from molecules to organisms). Your analysis uniquely asks: (1) What does the evolutionary record reveal about this problem that purely mechanistic or computational approaches miss? (2) Which model organisms or cross-species comparisons provide the most informative natural experiments? (3) How do conserved vs divergent regions constrain possible solutions? (4) What phylogenetic databases and comparative genomics tools (UCSC Genome Browser, Ensembl Compara, OrthoFinder, PhyloP conservation scores) would you deploy, and why? You always end with a specific phylogenetic or comparative genomics experiment that no other agent would suggest. Be bold, specific, and cross-disciplinary. Use **bold** for key claims. Keep under 260 words. End with one concrete next step that only evolutionary/phylogenetic reasoning could identify."},
+  {id:"experimentalist",name:"Experimentalist",color:"#10b981",lens:"Wet-Lab Protocol Design",
+   sys:`You are Dr. Sarah Chen, a senior experimental biologist with 15 years bench experience. Your role: WET-LAB PROTOCOL DESIGN.
+
+CRITICAL: Every protocol you propose must follow this EXACT format and level of specificity:
+
+🔬 **PROTOCOL** (numbered steps with exact quantities):
+1. [Step] — [exact reagent, catalog# if known, concentration, volume, timing]
+   Example: "Lyse cells in 500µL RIPA buffer (ThermoFisher #89900) + 1x protease inhibitor (Roche cOmplete) for 30 min on ice"
+2. [Step] — continue this level of detail
+
+🛒 **WHAT YOU NEED TO BUY**:
+- [Reagent/Kit name] | Supplier | Cat# | ~Cost | Purpose
+
+🧫 **CONTROLS** (positive AND negative, with expected results):
+- Positive control: [specific reagent/condition] → expected result
+- Negative control: [specific reagent/condition] → expected result
+
+⏱ **REALISTIC TIMELINE**: [Day-by-day or hour-by-hour breakdown]
+
+📚 **KEY REFERENCE** (cite with PMID): "[Title snippet]" PMID:XXXXXXX — [why this protocol works]
+
+⚠️ **TOP 3 PITFALLS**:
+1. [Specific failure mode + how to avoid]
+
+Bold key claims. 260 words max. End with one concrete first step a lab can do tomorrow.`},
+
+  {id:"bioinformatician",name:"Bioinformatician",color:"#06b6d4",lens:"Pipeline & Code Design",
+   sys:`You are Dr. Alex Kumar, a computational biologist specializing in bioinformatics pipeline design. Your role: PIPELINE & CODE DESIGN.
+For every biology problem you MUST:
+1. Propose a specific analysis pipeline with named tools and versions (e.g. STAR 2.7.10, DESeq2 1.40, scanpy 1.9)
+2. Specify input/output formats (FASTQ → BAM → count matrix → results)
+3. Identify the most common computational errors (e.g. wrong normalization, batch effects, multiple testing)
+4. Suggest the correct statistical approach with parameters
+5. Note which steps require HPC vs can run on a laptop
+Structure: 📊 PIPELINE → 💻 KEY TOOLS → ⚙️ PARAMETERS → 🐛 COMMON ERRORS
+**Bold** key claims. 260 words max. End with the single most important parameter to get right.`},
+
+  {id:"statistician",name:"Statistician",color:"#f59e0b",lens:"Study Design & Power Analysis",
+   sys:`You are Prof. Michael Torres, a biostatistician specializing in experimental design for biology. Your role: STUDY DESIGN & STATISTICAL RIGOR.
+For every biology problem you MUST:
+1. Identify the statistical design (paired/unpaired, factorial, time-series, etc.)
+2. Calculate or estimate required sample sizes for 80% power at α=0.05
+3. Identify sources of technical vs biological variance
+4. Propose multiple testing correction strategy appropriate to the experiment
+5. Flag any statistical assumptions that are commonly violated (normality, independence, etc.)
+Structure: 📐 DESIGN → 🔢 SAMPLE SIZE → 📉 VARIANCE → ✅ CORRECTION → ⚠️ ASSUMPTIONS
+**Bold** key claims. 260 words max. End with the minimum n required for the proposed experiment.`},
+
+  {id:"structural",name:"Structural Biologist",color:"#8b5cf6",lens:"Structural & Molecular Mechanisms",
+   sys:`You are Dr. Priya Patel, a structural biologist with expertise in protein/RNA structure and molecular mechanisms. Your role: STRUCTURAL & MOLECULAR MECHANISM ANALYSIS.
+For every biology problem you MUST:
+1. Analyze the 3D structural basis of the problem (reference PDB IDs or AlphaFold predictions)
+2. Identify key molecular interactions (hydrogen bonds, hydrophobic cores, binding interfaces)
+3. Predict how sequence changes affect structure and function
+4. Suggest structural biology experimental approaches (cryo-EM, X-ray, NMR, HDX-MS)
+5. Reference relevant structural databases (PDB, UniProt, AlphaFoldDB, RCSB)
+Structure: 🏗️ STRUCTURE → ⚛️ KEY INTERACTIONS → 🔀 VARIANTS → 🔬 EXPERIMENTS
+**Bold** key claims. 260 words max. End with one structural experiment that would resolve the core uncertainty.`},
+
+  {id:"systems",name:"Systems Biologist",color:"#e879f9",lens:"Pathway & Network Analysis",
+   sys:`You are Dr. Yuki Tanaka, a systems biologist specializing in pathway modeling and network analysis. Your role: SYSTEMS & PATHWAY ANALYSIS.
+For every biology problem you MUST:
+1. Place the problem in a pathway/network context (cite KEGG pathway IDs, Reactome IDs, STRING interactions)
+2. Identify feedback loops, network hubs, and emergent properties
+3. Propose a computational model (ODE, Boolean network, constraint-based) with specific parameters
+4. Predict upstream/downstream consequences of perturbations
+5. Suggest publicly available datasets that could validate the model (GEO, TCGA, GTEx accession numbers)
+Structure: 🕸️ NETWORK → 🔄 FEEDBACK → 🧮 MODEL → 📡 DATASETS
+**Bold** key claims. 260 words max. End with the one pathway node that, if targeted, would have the biggest downstream effect.`},
+
+  {id:"clinician",name:"Clinician-Scientist",color:"#f97316",lens:"Clinical Translation & Patient Impact",
+   sys:`You are Dr. James Wright, a physician-scientist with expertise in translational medicine. Your role: CLINICAL TRANSLATION & PATIENT IMPACT.
+For every biology problem you MUST:
+1. State the unmet clinical need with patient numbers (e.g. "affects ~50,000 US patients/year")
+2. Identify the nearest clinical application (diagnostic biomarker, drug target, therapeutic)
+3. Assess regulatory pathway (IND, biomarker qualification, companion diagnostic)
+4. Cite relevant clinical trials (ClinicalTrials.gov NCT numbers) or precedents
+5. Identify the patient subpopulation most likely to benefit first
+Structure: 🏥 CLINICAL NEED → 💊 APPLICATION → 📋 REGULATORY → 🔬 TRIALS → 👥 PATIENTS
+**Bold** key claims. 260 words max. End with the one clinical data point that would most accelerate translation.`},
+
+  {id:"advocate",name:"Devil's Advocate",color:"#ff2d55",lens:"Critical Challenges & Failure Modes",
+   sys:`You are the Devil's Advocate — a rigorous scientific critic whose sole job is to identify why the proposed approaches WILL FAIL.
+For every biology problem you MUST:
+1. Identify the single most likely reason the consensus approach will NOT work in practice
+2. Cite a specific published failure case where a similar approach failed (with PMID)
+3. Challenge the most fundamental assumption being made by other agents
+4. Identify what the field has tried before and why it failed
+5. Propose a completely different approach that sidesteps the main failure mode
+Structure: ❌ MOST LIKELY FAILURE → 📚 PRECEDENT FAILURE → 🚫 CHALLENGED ASSUMPTION → 🔄 ALTERNATIVE
+Be specific, combative, and intellectually honest. **Bold** key challenges. 260 words max. End with the one question the other agents haven't answered that they must answer before proceeding.`},
+
+  {id:"synthesizer",name:"Synthesizer",color:"#2aff80",lens:"Cross-Agent Synthesis & Consensus",
+   sys:`You are the Synthesizer — the meta-agent whose job is to find the optimal path forward by integrating all agent perspectives.
+For every biology problem you MUST:
+1. Identify which 2-3 agent proposals are most compatible and can be combined
+2. Resolve the most important disagreement between agents with a specific verdict
+3. Propose the minimum viable experiment that tests the core hypothesis
+4. Identify what would change your recommendation (the key uncertainties)
+5. Specify the 3-step action plan that integrates the best elements from all agents
+Structure: 🤝 COMPATIBLE APPROACHES → ⚖️ VERDICT → 🧪 MVP EXPERIMENT → ❓ KEY UNCERTAINTIES → 📋 ACTION PLAN
+**Bold** verdicts. 260 words max. End with the single highest-impact action that moves the field forward.`},
 ];
 
 /* ═══════ CONSTANTS ═══════ */
 const SK = "bioarena:iters";
-const MAX_ROUNDS = 3;   // 3 rounds — enough for meaningful debate, stays under rate limits
-const MIN_ROUNDS = 2;   // always at least 2 rounds regardless of early convergence
-const CONV = 65;        // threshold for "resolved" — raised so agents push harder
+const MAX_ROUNDS = 3;
+const MIN_ROUNDS = 2;
+const CONV = 65;
+const LAB_PROFILE_KEY = "bioarena:lab_profile";
 
 const SESSION_ID = (() => {
   if (!window.__baSessionId) window.__baSessionId = Math.random().toString(36).slice(2)+Date.now().toString(36);
   return window.__baSessionId;
 })();
+
+/* ═══════ LAB MEMORY ═══════ */
+const DEFAULT_PROFILE = {
+  organism: "",
+  dataType: "",
+  tools: "",
+  institution: "",
+  recentQuestions: [] as string[],
+};
+
+function loadLabProfile(){
+  try{const r=localStorage.getItem(LAB_PROFILE_KEY);return r?{...DEFAULT_PROFILE,...JSON.parse(r)}:{...DEFAULT_PROFILE};}
+  catch{return{...DEFAULT_PROFILE};}
+}
+function saveLabProfile(p:any){
+  try{localStorage.setItem(LAB_PROFILE_KEY,JSON.stringify(p));}catch{}
+}
+function addToRecentQuestions(title:string){
+  const p=loadLabProfile();
+  const recent=[title,...(p.recentQuestions||[]).filter((q:string)=>q!==title)].slice(0,10);
+  saveLabProfile({...p,recentQuestions:recent});
+}
+
+/* ═══════ LAB PROFILE WIDGET ═══════ */
+function LabProfilePanel({onProfileChange}:{onProfileChange:(p:any)=>void}){
+  const [profile,setProfile]=useState(()=>loadLabProfile());
+  const [open,setOpen]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  const save=()=>{
+    saveLabProfile(profile);
+    onProfileChange(profile);
+    setSaved(true);
+    setTimeout(()=>setSaved(false),2000);
+  };
+
+  const hasProfile=profile.organism||profile.dataType||profile.tools;
+
+  return(
+    <div style={{marginBottom:16}}>
+      <button onClick={()=>setOpen(v=>!v)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 14px",background:"rgba(42,255,128,.04)",border:`1px solid ${hasProfile?"rgba(42,255,128,.3)":"#182640"}`,borderRadius:4,cursor:"pointer",textAlign:"left"}}>
+        <span style={{fontSize:14}}>{hasProfile?"🧬":"🔬"}</span>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"Oxanium,sans-serif",fontSize:10,letterSpacing:1.5,color:hasProfile?"#2aff80":"#6a85b0",textTransform:"uppercase"}}>Lab Profile {hasProfile?"· Active":"· Not set"}</div>
+          {hasProfile&&<div style={{fontSize:10,color:"#354d72",marginTop:2}}>{[profile.organism,profile.dataType,profile.tools].filter(Boolean).join(" · ").slice(0,60)}</div>}
+        </div>
+        <span style={{color:"#354d72",fontSize:11}}>{open?"▲":"▼"}</span>
+      </button>
+
+      {open&&(
+        <div style={{background:"#020617",border:"1px solid #182640",borderTop:"none",borderRadius:"0 0 4px 4px",padding:"14px 16px"}}>
+          <div style={{fontSize:10.5,color:"#6a85b0",marginBottom:12,lineHeight:1.6}}>
+            Your lab profile is saved locally and automatically prepended to every debate — agents tailor answers to your specific context.
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+            {[
+              {key:"organism",label:"Primary Organism / Cell Type",ph:"e.g. human hepatocytes, mouse, HEK293T"},
+              {key:"dataType",label:"Main Data Type",ph:"e.g. bulk RNA-seq, scRNA-seq, proteomics"},
+              {key:"tools",label:"Preferred Tools / Constraints",ph:"e.g. Python only, DESeq2, no cloud HPC"},
+              {key:"institution",label:"Institution / Context (optional)",ph:"e.g. academic wet lab, biotech startup"},
+            ].map(f=>(
+              <div key={f.key}>
+                <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#354d72",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>{f.label}</div>
+                <input
+                  value={(profile as any)[f.key]||""}
+                  onChange={e=>setProfile((p:any)=>({...p,[f.key]:e.target.value}))}
+                  placeholder={f.ph}
+                  style={{width:"100%",background:"#030812",border:"1px solid #1e293b",borderRadius:3,padding:"7px 9px",color:"#b4c8e8",fontFamily:"'JetBrains Mono',monospace",fontSize:10.5,outline:"none"}}
+                  onFocus={e=>e.target.style.borderColor="#334155"} onBlur={e=>e.target.style.borderColor="#1e293b"}
+                />
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button onClick={save} style={{padding:"7px 18px",borderRadius:3,border:"1px solid rgba(42,255,128,.4)",background:"rgba(42,255,128,.08)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
+              {saved?"✓ Saved!":"Save Profile"}
+            </button>
+            {hasProfile&&<button onClick={()=>{const p={...DEFAULT_PROFILE};setProfile(p);saveLabProfile(p);onProfileChange(p);}} style={{padding:"7px 14px",borderRadius:3,border:"1px solid #182640",background:"transparent",color:"#354d72",fontFamily:"Oxanium,sans-serif",fontSize:10,cursor:"pointer"}}>Clear</button>}
+            <div style={{fontSize:10,color:"#354d72",marginLeft:4}}>Stored locally — never sent anywhere except your AI debates.</div>
+          </div>
+          {profile.recentQuestions?.length>0&&(
+            <div style={{marginTop:12,paddingTop:10,borderTop:"1px solid #182640"}}>
+              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#354d72",letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Recent Questions</div>
+              {profile.recentQuestions.slice(0,5).map((q:string,i:number)=>(
+                <div key={i} style={{fontSize:10.5,color:"#6a85b0",padding:"3px 0",borderBottom:"1px solid #0c1a30"}}>· {q.slice(0,80)}{q.length>80?"…":""}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ═══════ API + STORAGE ═══════ */
 
@@ -254,9 +464,8 @@ async function callClaude(system, userMsg) {
     }
   }
 
-  // ── Default path — Cloudflare Worker proxy (key stays server-side) ──
-  // Replace YOUR-WORKER-URL with your actual Cloudflare Worker URL
-  const res = await fetch("https://bioarena-api.sankalpachakraborty91.workers.dev/", {
+  // ── Default path — Cloudflare Worker proxy ──
+  const res = await fetch(`${WORKER_URL}/api/ai`, {
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({
@@ -270,14 +479,105 @@ async function callClaude(system, userMsg) {
   return d.choices?.[0]?.message?.content||"No response.";
 }
 
-async function loadIters(qid:any){try{const r=localStorage.getItem(`${SK}:${qid}`);return r?JSON.parse(r):[];}catch{return[];}}
-async function saveIters(qid:any,iters:any){try{localStorage.setItem(`${SK}:${qid}`,JSON.stringify(iters));}catch{}}
+/* ═══════ WORKER URL — replace with your actual Worker URL ═══════ */
+const WORKER_URL = "https://bioarena-api.sankalpachakraborty91.workers.dev/";
 
-/* ═══════ DEBATE ENGINE ═══════ */
-const JUDGE_SYS=`You are an impartial scientific arbiter. Evaluate whether expert agents have reached sufficient consensus on a biology problem.
+/* ═══════ SHARED STORAGE (Cloudflare KV via Worker) ═══════ */
+// All data is stored in Cloudflare KV — shared across ALL users globally
+// localStorage is used only as a fast local cache / offline fallback
+
+async function kvGet(key:string):Promise<any>{
+  try{
+    const r=await fetch(`${WORKER_URL}/api/kv?key=${encodeURIComponent(key)}`);
+    if(!r.ok) throw new Error("KV get failed");
+    const d=await r.json();
+    return d.value??null;
+  }catch{
+    // Fallback to localStorage
+    try{const l=localStorage.getItem(key);return l?JSON.parse(l):null;}catch{return null;}
+  }
+}
+
+async function kvSet(key:string,value:any):Promise<void>{
+  try{
+    await fetch(`${WORKER_URL}/api/kv`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({key,value:JSON.stringify(value)}),
+    });
+    // Also cache locally for speed
+    try{localStorage.setItem(key,JSON.stringify(value));}catch{}
+  }catch{
+    // Fallback to localStorage only
+    try{localStorage.setItem(key,JSON.stringify(value));}catch{}
+  }
+}
+
+async function loadIters(qid:any){
+  const data=await kvGet(`${SK}:${qid}`);
+  return data??[];
+}
+async function saveIters(qid:any,iters:any){
+  await kvSet(`${SK}:${qid}`,iters);
+}
+
+/* ═══════ PUBMED CITATION FETCHER ═══════ */
+async function fetchPubMedCitations(query:string):Promise<string>{
+  try{
+    const r=await fetch(`${WORKER_URL}/api/pubmed?q=${encodeURIComponent(query)}`);
+    if(!r.ok) return "";
+    const d=await r.json();
+    if(!d.papers||d.papers.length===0) return "";
+    const lines=d.papers.slice(0,5).map((p:any)=>
+      `- ${p.title} (${p.authors?.[0]||"et al."}, ${p.year||""}; PMID:${p.pmid}) — ${p.abstract?.slice(0,120)||""}…`
+    ).join("\n");
+    return `\n\n**Relevant literature (cite these PMIDs in your response):**\n${lines}`;
+  }catch{return "";}
+}
+
+/* ═══════ E2B CODE EXECUTOR ═══════ */
+async function runCodeInSandbox(code:string):Promise<{stdout:string,stderr:string,images:string[],error:string|null}>{
+  try{
+    const r=await fetch(`${WORKER_URL}/api/run-code`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({code,timeout:30}),
+    });
+    if(!r.ok){
+      const err=await r.text();
+      return{stdout:"",stderr:"",images:[],error:`Sandbox error: ${err}`};
+    }
+    const d=await r.json();
+    return{
+      stdout:d.stdout||"",
+      stderr:d.stderr||"",
+      images:d.images||[],
+      error:d.error||null,
+    };
+  }catch(e:any){
+    return{stdout:"",stderr:"",images:[],error:`Connection error: ${e.message}`};
+  }
+}
+const JUDGE_SYS=`You are an expert scientific arbiter evaluating a multi-agent biology debate.
 Return ONLY valid JSON, no markdown fences:
-{"score":<integer 0-100>,"resolved":<true if score>=60>,"unresolved_tensions":["tension 1","tension 2"],"next_debate_focus":"One specific focused question for the next round"}
-Score rubric: 0-30=fundamental disagreements, 31-55=partial agreement, 56-59=mostly aligned but key gap, 60-79=strong consensus, 80-100=full convergence.`;
+{
+  "score": <integer 0-100, weighted average of dimensions below>,
+  "dimensions": {
+    "scientific_accuracy": <0-100, are claims grounded in established biology?>,
+    "experimental_feasibility": <0-100, can a real lab execute this?>,
+    "code_correctness": <0-100, is the proposed code/pipeline sound?>,
+    "novelty": <0-100, does it go beyond textbook answers?>,
+    "clarity": <0-100, is the action plan specific and actionable?>
+  },
+  "resolved": <true if score>=60>,
+  "unresolved_tensions": ["specific tension 1", "specific tension 2"],
+  "next_debate_focus": "One specific scientific question for next round",
+  "strongest_agent": "<agent name> made the most evidence-based argument because...",
+  "weakest_claim": "The claim that needs most evidence is..."
+}
+Scoring weights: scientific_accuracy=35%, experimental_feasibility=20%, code_correctness=25%, novelty=10%, clarity=10%.
+Score rubric: 0-30=fundamental disagreements, 31-55=partial agreement, 56-59=mostly aligned but key gap, 60-79=strong consensus, 80-100=full convergence.
+Be specific — name actual agent claims, tools, or methods in your assessment.`;
 
 async function judgeRound(q, allRounds, prevConsensus){
   const summaries = allRounds.map((rnd,ri)=>
@@ -293,6 +593,14 @@ async function judgeRound(q, allRounds, prevConsensus){
 async function runDebateRound(q:any, roundNum:number, prevRounds:any[], userInput:string, onStatus:any, prevConsensus:string){
   const agents=[];
 
+  // Fetch PubMed citations on round 1 only (avoid rate limits)
+  let citationContext="";
+  if(roundNum===1){
+    try{
+      citationContext=await fetchPubMedCitations(`${q.title} ${(q.tags||[]).slice(0,3).join(" ")}`);
+    }catch{}
+  }
+
   // Build relevance context for follow-up inputs
   const relevanceNote = userInput && prevRounds.length>0
     ? `\n\n**CRITICAL — User follow-up input to assess:** "${userInput}"\nBefore responding, explicitly state in 1 sentence: (a) how relevant this input is to the original problem (HIGH/MEDIUM/LOW relevance and why), then (b) how you will specifically incorporate it. If LOW relevance, say so honestly and explain what you'll focus on instead.`
@@ -306,6 +614,7 @@ async function runDebateRound(q:any, roundNum:number, prevRounds:any[], userInpu
     if(userInput && prevRounds.length===0) msg+=`**Researcher context (incorporate specifically):** ${userInput}\n\n`;
     if(relevanceNote) msg+=relevanceNote+"\n\n";
     if(prevConsensus) msg+=`**Previous session consensus (build on/challenge — do NOT repeat):**\n${prevConsensus.slice(0,300)}\n\n`;
+    if(citationContext) msg+=citationContext+"\n\n";
 
     if(prevRounds.length>0){
       const last=prevRounds[prevRounds.length-1];
@@ -436,38 +745,206 @@ Write the Conclusion Card now.`;
   catch { return "Conclusion generation failed. See the tabs below for full details."; }
 }
 
-async function generateCode(q, finalConsensus, userInput){
-  const sys=`You are a bioinformatics expert generating practical Python code for a biology research problem.
+// Biology-specific code templates — agents fill these in rather than writing from scratch
+const CODE_TEMPLATES:Record<string,string> = {
+  rnaseq: `# DESeq2-style differential expression (Python/PyDESeq2)
+import pandas as pd
+import numpy as np
+from pydeseq2.dds import DeseqDataSet
+from pydeseq2.ds import DeseqStats
+import matplotlib.pyplot as plt
 
-Structure your response EXACTLY as follows:
+# Load count matrix (genes x samples)
+counts = pd.read_csv("counts.csv", index_col=0)  # Replace with your file
+metadata = pd.read_csv("metadata.csv", index_col=0)  # condition column required
+
+# Run DESeq2
+dds = DeseqDataSet(counts=counts.T, metadata=metadata, design_factors="condition")
+dds.deseq2()
+stat_res = DeseqStats(dds, contrast=["condition","treatment","control"])
+stat_res.summary()
+results = stat_res.results_df
+
+# Volcano plot
+results["-log10_padj"] = -np.log10(results["padj"].clip(1e-300))
+sig = results[(results["padj"]<0.05) & (results["log2FoldChange"].abs()>1)]
+plt.figure(figsize=(8,6))
+plt.scatter(results["log2FoldChange"], results["-log10_padj"], c="grey", alpha=0.3, s=10)
+plt.scatter(sig["log2FoldChange"], sig["-log10_padj"], c="red", alpha=0.7, s=15, label=f"DEGs n={len(sig)}")
+plt.axhline(-np.log10(0.05), color="blue", linestyle="--")
+plt.axvline(1, color="green", linestyle="--"); plt.axvline(-1, color="green", linestyle="--")
+plt.xlabel("log2 Fold Change"); plt.ylabel("-log10 adjusted p-value")
+plt.title("Volcano Plot — Differential Expression"); plt.legend(); plt.tight_layout()
+plt.savefig("volcano.png", dpi=150)
+print(f"Total DEGs: {len(sig)} | Up: {(sig.log2FoldChange>0).sum()} | Down: {(sig.log2FoldChange<0).sum()}")
+results.to_csv("deseq2_results.csv")`,
+
+  scrna: `# Scanpy single-cell RNA-seq pipeline
+import scanpy as sc
+import pandas as pd
+
+sc.settings.verbosity = 3
+sc.settings.figdir = "./figures/"
+
+# Load data
+adata = sc.read_h5ad("data.h5ad")  # or sc.read_10x_mtx("filtered_feature_bc_matrix/")
+
+# QC filtering
+sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
+adata = adata[adata.obs.n_genes_by_counts > 200, :]
+adata = adata[adata.obs.n_genes_by_counts < 6000, :]
+adata = adata[adata.obs.pct_counts_mt < 20, :]  # adjust mt gene prefix if needed
+
+# Normalization and HVG selection
+sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.log1p(adata)
+sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+adata = adata[:, adata.var.highly_variable]
+
+# PCA, neighbors, UMAP, clustering
+sc.pp.scale(adata, max_value=10)
+sc.tl.pca(adata, svd_solver='arpack')
+sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
+sc.tl.umap(adata)
+sc.tl.leiden(adata, resolution=0.5)
+
+# Find marker genes
+sc.tl.rank_genes_groups(adata, 'leiden', method='wilcoxon')
+sc.pl.umap(adata, color=['leiden'], save='_clusters.png')
+sc.pl.rank_genes_groups(adata, n_genes=10, save='_markers.png')
+markers = sc.get.rank_genes_groups_df(adata, group=None)
+markers.to_csv("cluster_markers.csv")
+adata.write("processed.h5ad")`,
+
+  survival: `# Kaplan-Meier + Cox proportional hazards survival analysis
+import pandas as pd
+import numpy as np
+from lifelines import KaplanMeierFitter, CoxPHFitter
+from lifelines.statistics import logrank_test
+import matplotlib.pyplot as plt
+
+# Load data — requires: duration_col, event_col, covariate columns
+df = pd.read_csv("survival_data.csv")  # Replace with your file
+
+# Kaplan-Meier by group
+kmf = KaplanMeierFitter()
+fig, ax = plt.subplots(figsize=(8,6))
+for group in df["biomarker_group"].unique():
+    mask = df["biomarker_group"] == group
+    kmf.fit(df[mask]["survival_months"], df[mask]["event"], label=group)
+    kmf.plot_survival_function(ax=ax, ci_show=True)
+
+# Log-rank test
+groups = df["biomarker_group"].unique()
+if len(groups)==2:
+    g1 = df[df["biomarker_group"]==groups[0]]
+    g2 = df[df["biomarker_group"]==groups[1]]
+    result = logrank_test(g1["survival_months"], g2["survival_months"], g1["event"], g2["event"])
+    ax.set_title(f"Kaplan-Meier (log-rank p={result.p_value:.4f})")
+
+plt.xlabel("Time (months)"); plt.ylabel("Survival probability")
+plt.tight_layout(); plt.savefig("kaplan_meier.png", dpi=150)
+
+# Cox regression
+cph = CoxPHFitter()
+cph.fit(df, duration_col="survival_months", event_col="event")
+cph.print_summary()
+cph.plot(); plt.savefig("cox_forest.png", dpi=150)`,
+
+  crispr: `# CRISPR screen analysis with MAGeCK-style approach
+import pandas as pd
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load sgRNA count data (output from MAGeCK count)
+df = pd.read_csv("mageck_count.txt", sep="\t")
+
+# Calculate log2 fold changes
+ctrl_cols = [c for c in df.columns if "control" in c.lower()]
+treat_cols = [c for c in df.columns if "treatment" in c.lower()]
+
+df["ctrl_mean"] = df[ctrl_cols].mean(axis=1) + 0.5  # pseudocount
+df["treat_mean"] = df[treat_cols].mean(axis=1) + 0.5
+df["log2fc"] = np.log2(df["treat_mean"] / df["ctrl_mean"])
+
+# Gene-level aggregation (median of sgRNAs per gene)
+gene_scores = df.groupby("Gene")["log2fc"].agg(["median","count","std"]).reset_index()
+gene_scores.columns = ["gene","median_lfc","n_guides","std_lfc"]
+gene_scores = gene_scores[gene_scores["n_guides"]>=3]  # require ≥3 guides
+
+# Z-score normalization
+gene_scores["zscore"] = stats.zscore(gene_scores["median_lfc"])
+gene_scores["rank"] = gene_scores["median_lfc"].rank(ascending=False)
+gene_scores = gene_scores.sort_values("median_lfc")
+
+# Plot: ranked gene scores
+plt.figure(figsize=(10,5))
+colors = ["red" if z < -2 else "blue" if z > 2 else "grey" for z in gene_scores["zscore"]]
+plt.bar(range(len(gene_scores)), gene_scores["median_lfc"], color=colors, alpha=0.7)
+plt.xlabel("Gene rank"); plt.ylabel("Median log2 FC")
+plt.title("CRISPR Screen — Gene-Level Scores (red=depleted, blue=enriched)")
+plt.tight_layout(); plt.savefig("crispr_screen.png", dpi=150)
+gene_scores.to_csv("gene_scores.csv", index=False)
+print(f"Top depleted genes:\n{gene_scores.head(10)[['gene','median_lfc','zscore']].to_string()}")`,
+};
+
+function detectTemplate(title:string, consensus:string):string{
+  const text=(title+consensus).toLowerCase();
+  if(text.includes("deseq")||text.includes("rna-seq")||text.includes("differential expression")||text.includes("deg")) return "rnaseq";
+  if(text.includes("single-cell")||text.includes("scrna")||text.includes("seurat")||text.includes("scanpy")||text.includes("umap")) return "scrna";
+  if(text.includes("survival")||text.includes("kaplan")||text.includes("cox")||text.includes("clinical")) return "survival";
+  if(text.includes("crispr")||text.includes("screen")||text.includes("sgrna")||text.includes("mageck")) return "crispr";
+  return "";
+}
+
+async function generateCode(q:any, finalConsensus:string, userInput:string){
+  const template = detectTemplate(q.title||"", finalConsensus);
+  const templateNote = template
+    ? `\n\nIMPORTANT: Use this validated ${template.toUpperCase()} template as your base — fill in the biology-specific details from the consensus above. Modify variable names, parameters, and comments to match the specific problem:\n\`\`\`python\n${CODE_TEMPLATES[template]}\n\`\`\``
+    : "";
+
+  const sys=`You are a bioinformatics expert generating practical Python code for a biology research problem.
+${templateNote ? "A validated code template is provided below — USE IT as your base, modify it to fit the specific problem." : "Write practical Python code from scratch."}
+
+Structure your response EXACTLY as:
 
 ## What this code does
-[2-3 sentence plain-English description]
+[2-3 plain-English sentences]
 
-## Install these first
-[pip install commands on one line each]
+## Install first
+[pip install commands]
 
 \`\`\`python
-# [50-100 lines of working Python code]
-# Use synthetic data examples so the code runs immediately without real data
-# Clear comments explaining each section in plain English
-# Realistic biology data shapes and variable names
+[40-70 lines of working Python — use the template if provided, otherwise write from scratch]
+[Use synthetic/example data so it runs immediately]
+[Clear comments explaining each step]
 \`\`\`
 
-## What you can do RIGHT NOW with this code
-- [specific capability 1 — plain English]
-- [specific capability 2 — plain English]
-- [specific capability 3 — plain English]
+## What it handles right now
+- [capability 1]
+- [capability 2]
+- [capability 3]
 
-## What this code CANNOT do yet — you need to provide or do:
-- **Needs your real data:** [exactly what data files/formats the researcher must supply]
-- **Needs wet-lab validation:** [what computational outputs must be confirmed experimentally — code alone cannot do this]
-- **Needs a specialist for:** [more complex analyses beyond this starting point]
-- **Still beyond current AI capability:** [what remains genuinely unsolved even with more code and more data]
+## What you still need to do
+- **Your data:** [exact format needed]
+- **Wet-lab validation:** [what must be confirmed experimentally]
+- **Next step:** [most important thing to add to this code]`;
 
-Keep the code simple. Prioritize clarity over complexity. It must run in under 5 minutes on a laptop.`;
-  try{return await callClaude(sys,`Biology problem: ${q.title}\nResearcher context: ${userInput||"none"}\n\nExpert consensus:\n${finalConsensus.slice(0,900)}\n\nGenerate practical starter code.`);}
-  catch{return "Code generation failed. Please try again.";}
+  const msg=`Biology problem: ${q.title}\nContext: ${userInput||"none"}\n\nConsensus:\n${finalConsensus.slice(0,500)}\n\nGenerate practical starter code.`;
+
+  let attempts=0;
+  while(attempts<4){
+    try{
+      await new Promise(r=>setTimeout(r,8000+attempts*10000));
+      return await callClaude(sys,msg);
+    }catch(e:any){
+      attempts++;
+      if(attempts>=4) return `Code generation failed after ${attempts} attempts — rate limit reached. Click "⚡ Generate Code Now" in the Starter Code tab to retry when the rate limit resets (~1 minute).`;
+    }
+  }
+  return "Code generation failed. Please retry from the Starter Code tab.";
 }
 
 /* ═══════ RESPONSIVE HOOK ═══════ */
@@ -590,7 +1067,9 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
   const mob=useIsMobile();
   const [search,setSearch]=useState("");
   const [tagFilter,setTagFilter]=useState("");
+  const [diffFilter,setDiffFilter]=useState("");
   const [readingMode,setReadingMode]=useState(false);
+  const [labProfile,setLabProfile]=useState(()=>loadLabProfile());
   const [recentCommunity,setRecentCommunity]=useState([]);
   const [showAllProblems,setShowAllProblems]=useState(false);
   const [askQ,setAskQ]=useState("");
@@ -605,11 +1084,12 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
   const [byoaTesting,setByoaTesting]=useState(false);
   const [byoaTestMsg,setByoaTestMsg]=useState("");
   const allTags=Array.from(new Set(QS.flatMap(q=>q.tags||[]))).slice(0,20);
-  const filteredQs=QS.filter(q=>{
+  const filteredQs=QS.filter((q:any)=>{
     const s=search.trim().toLowerCase();
     const inSearch=!s||q.title.toLowerCase().includes(s)||(q.prompt||"").toLowerCase().includes(s);
     const inTag=!tagFilter||(q.tags||[]).includes(tagFilter);
-    return inSearch&&inTag;
+    const inDiff=!diffFilter||q.difficulty===diffFilter;
+    return inSearch&&inTag&&inDiff;
   });
 
   useEffect(()=>{
@@ -622,13 +1102,21 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
     const q=askQ.trim();
     if(!q||submittingAsk) return;
     setSubmittingAsk(true);
+    const profile=loadLabProfile();
+    const profileStr=[
+      profile.organism&&`Organism: ${profile.organism}`,
+      profile.dataType&&`Data type: ${profile.dataType}`,
+      profile.tools&&`Tools: ${profile.tools}`,
+    ].filter(Boolean).join(" | ");
+    const fullQ=profileStr?`${q} [Lab context: ${profileStr}]`:q;
+    addToRecentQuestions(q);
     const id="cq_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,6);
-    const entry={id,title:q,ts:Date.now(),sessionId:SESSION_ID,submissionCount:0,resolved:false,finalScore:0};
+    const entry={id,title:fullQ,ts:Date.now(),sessionId:SESSION_ID,submissionCount:0,resolved:false,finalScore:0};
     const idx=await loadCommunityIndex();
-    const updated=[entry,...idx.filter(x=>!x.id.startsWith("seed_"))];
+    const updated=[entry,...idx.filter((x:any)=>!x.id.startsWith("seed_"))];
     await saveCommunityIndex(updated);
     setAskQ("");setSubmittingAsk(false);
-    goCommunityQ(id,q);
+    goCommunityQ(id,fullQ);
   },[askQ,submittingAsk,goCommunityQ]);
 
   const PROVIDER_DEFAULTS = {
@@ -740,6 +1228,9 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
           </div>
           <div style={{fontSize:12.5,color:"#6a85b0",lineHeight:1.8,maxWidth:680}}>
             Ask anything — protocol design, data analysis, conceptual questions, or code requests. All {AGENTS.length} agents debate across up to {MAX_ROUNDS} rounds and produce a <b style={{color:"#ffc34d"}}>plain-English action plan</b>, <b style={{color:"#2aff80"}}>starter code</b>, and a <b style={{color:"#a78bfa"}}>conclusion summary</b>. Results are saved publicly so the whole community can build on them.
+          </div>
+          <div style={{marginTop:16}}>
+            <LabProfilePanel onProfileChange={(p:any)=>setLabProfile(p)}/>
           </div>
         </div>
 
@@ -920,21 +1411,25 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
           <span style={{fontSize:10,color:"#354d72"}}>{CATS.length} domains</span>
         </div>
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(auto-fill,minmax(258px,1fr))",gap:10}}>
-          {CATS.map(c=>(
+          {(CATS as any[]).map((c:any)=>{
+            const diffColors:any={Graduate:"#2aff80",Expert:"#ffc34d",Unsolved:"#ff5c5c"};
+            const dc=diffColors[c.difficulty]||"#6a85b0";
+            return(
             <div key={c.id} onClick={()=>goCategory(c.id)} style={{background:"#07101f",border:"1px solid #182640",borderRadius:3,padding:"14px 16px",cursor:"pointer",position:"relative",overflow:"hidden",transition:"all .13s"}}
               onMouseEnter={e=>{e.currentTarget.style.borderColor="#223260";e.currentTarget.style.background="#0c1a30";e.currentTarget.style.transform="translateY(-1px)";}}
               onMouseLeave={e=>{e.currentTarget.style.borderColor="#182640";e.currentTarget.style.background="#07101f";e.currentTarget.style.transform="none";}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:2,background:c.color,opacity:.7}}/>
               <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:8}}>
                 <div style={{fontFamily:"Oxanium,sans-serif",fontSize:11.5,fontWeight:700,color:"#cee0ff",lineHeight:1.3}}>{c.name}</div>
-                <div className="badge-pill" style={{background:"rgba(42,255,128,.08)",color:"#2aff80",border:"1px solid rgba(42,255,128,.18)",marginLeft:8,flexShrink:0}}>Expert</div>
+                <div className="badge-pill" style={{background:`${dc}18`,color:dc,border:`1px solid ${dc}44`,marginLeft:8,flexShrink:0}}>{c.difficulty||"Expert"}</div>
               </div>
               <div style={{fontSize:11,color:"#354d72",lineHeight:1.65,display:"-webkit-box",WebkitLineClamp:3,WebkitBoxOrient:"vertical",overflow:"hidden"}}>{c.desc}</div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,paddingTop:9,borderTop:"1px solid #182640",fontSize:9.5,color:"#475569"}}>
                 <span>{c.q} problem{c.q>1?"s":""}</span><span>View problems →</span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       {/* All problems — collapsible */}
@@ -956,19 +1451,34 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
         {showAllProblems&&(
           <div style={{background:"#020617",border:"1px solid #182640",borderTop:"none",borderRadius:"0 0 4px 4px",padding:"12px"}}>
             {/* Filters */}
-            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
               <input placeholder="Search problems…" value={search} onChange={e=>setSearch(e.target.value)}
-                style={{flex:1,minWidth:180,background:"#030812",borderRadius:4,border:"1px solid #1e293b",color:"#e5e7eb",padding:"6px 9px",fontSize:11,outline:"none"}}/>
+                style={{flex:1,minWidth:160,background:"#030812",borderRadius:4,border:"1px solid #1e293b",color:"#e5e7eb",padding:"6px 9px",fontSize:11,outline:"none"}}/>
               <select value={tagFilter} onChange={e=>setTagFilter(e.target.value)}
-                style={{minWidth:140,background:"#030812",borderRadius:4,border:"1px solid #1e293b",color:"#9ca3af",padding:"6px 9px",fontSize:11}}>
+                style={{background:"#030812",borderRadius:4,border:"1px solid #1e293b",color:"#9ca3af",padding:"6px 9px",fontSize:11}}>
                 <option value="">All tags</option>
-                {allTags.map(t=><option key={t} value={t}>{t}</option>)}
+                {allTags.map((t:string)=><option key={t} value={t}>{t}</option>)}
               </select>
-              <span style={{fontSize:10,color:"#4b5563"}}>{filteredQs.length} shown</span>
+            </div>
+            {/* Difficulty filter */}
+            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+              {["","Graduate","Expert","Unsolved"].map(d=>{
+                const colors:any={Graduate:"#2aff80",Expert:"#ffc34d",Unsolved:"#ff5c5c","":`#6a85b0`};
+                const active=diffFilter===d;
+                return(
+                  <button key={d} onClick={()=>setDiffFilter(d)}
+                    style={{padding:"4px 12px",borderRadius:999,border:`1px solid ${active?colors[d]:"#182640"}`,background:active?colors[d]+"22":"transparent",color:active?colors[d]:"#354d72",fontFamily:"Oxanium,sans-serif",fontSize:9,letterSpacing:1,cursor:"pointer",transition:"all .12s"}}>
+                    {d||"All levels"}
+                  </button>
+                );
+              })}
+              <span style={{fontSize:10,color:"#4b5563",marginLeft:"auto",alignSelf:"center"}}>{filteredQs.length} shown</span>
             </div>
             <div style={{display:"grid",gap:6}}>
-              {filteredQs.map(q=>{
-                const cat=CATS.find(c=>c.id===q.cat);
+              {(filteredQs as any[]).map((q:any)=>{
+                const cat=CATS.find((c:any)=>c.id===q.cat);
+                const diffColors:any={Graduate:"#2aff80",Expert:"#ffc34d",Unsolved:"#ff5c5c"};
+                const dc=diffColors[q.difficulty]||"#354d72";
                 return(
                   <div key={q.id} onClick={()=>goQuestion(q.id)}
                     style={{background:"#07101f",borderRadius:3,border:"1px solid #182640",padding:"9px 11px",cursor:"pointer",transition:"border-color .12s"}}
@@ -976,11 +1486,14 @@ function Home({goCategory,goQuestion,goCommunity,goCommunityQ,customAPI,applyCus
                     onMouseLeave={e=>e.currentTarget.style.borderColor="#182640"}>
                     <div style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center"}}>
                       <div style={{fontSize:12,color:"#e5e7eb",fontWeight:500}}>{q.title}</div>
-                      <div style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>{q.pts} pts</div>
+                      <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                        {q.difficulty&&<span style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:dc,border:`1px solid ${dc}33`,borderRadius:3,padding:"2px 6px"}}>{q.difficulty}</span>}
+                        <div style={{fontSize:10,color:"#9ca3af",whiteSpace:"nowrap"}}>{q.pts} pts</div>
+                      </div>
                     </div>
                     <div style={{display:"flex",gap:6,alignItems:"center",fontSize:10,color:"#6b7280",flexWrap:"wrap",marginTop:4}}>
                       {cat&&<span className="badge-pill" style={{background:"rgba(15,23,42,1)",border:`1px solid ${cat.color}`,color:cat.color}}>{cat.name}</span>}
-                      {(q.tags||[]).slice(0,3).map(t=><span key={t} style={{color:"#64748b"}}>#{t}</span>)}
+                      {(q.tags||[]).slice(0,3).map((t:string)=><span key={t} style={{color:"#64748b"}}>#{t}</span>)}
                       <span style={{marginLeft:"auto",fontSize:9}}>View details →</span>
                     </div>
                   </div>
@@ -1218,7 +1731,19 @@ function Question({qid,goHome,goCategory}){
       ctx.tools&&`Tools/constraints: ${ctx.tools}`,
       ctx.output&&`Desired output: ${ctx.output}`,
     ].filter(Boolean).join(" | ");
-    const effectiveUi=structuredStr?`[Lab context: ${structuredStr}]${ui?` — ${ui}`:""}`:ui;
+
+    // Merge with saved lab profile (form fields take priority)
+    const profile=loadLabProfile();
+    const profileStr=[
+      !ctx.organism&&profile.organism&&`Organism: ${profile.organism}`,
+      !ctx.modality&&profile.dataType&&`Data type: ${profile.dataType}`,
+      !ctx.tools&&profile.tools&&`Tools: ${profile.tools}`,
+    ].filter(Boolean).join(" | ");
+
+    const allContext=[structuredStr,profileStr].filter(Boolean).join(" | ");
+    const effectiveUi=allContext?`[Lab context: ${allContext}]${ui?` — ${ui}`:""}`:ui;
+
+    addToRecentQuestions(q.title);
 
     const sortedIters=[...iters].sort((a,b)=>b.ts-a.ts);
     const prevConsensus=sortedIters.length>0?sortedIters[0].consensus||"":"";
@@ -1434,9 +1959,13 @@ function ConclusionPanel({conclusion, rounds, finalScore, resolved}){
   const scoreColor=finalScore>=80?"#2aff80":finalScore>=60?"#4ade80":finalScore>=40?"#ffc34d":"#f97316";
   const agreementBar=Math.min(finalScore,100);
 
+  // Extract dimension scores from last judge if available
+  const lastJudge=rounds[rounds.length-1]?.judge;
+  const dims=lastJudge?.dimensions||null;
+
   return(
     <div>
-      {/* Agreement strip */}
+      {/* Score strip with rubric breakdown */}
       <div style={{background:"#0c1a30",borderRadius:3,marginBottom:14,border:"1px solid #182640",overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:14,padding:"10px 14px"}}>
           <div style={{fontFamily:"Oxanium,sans-serif",fontSize:9,letterSpacing:2,color:"#354d72",textTransform:"uppercase"}}>AI agreement</div>
@@ -1444,13 +1973,45 @@ function ConclusionPanel({conclusion, rounds, finalScore, resolved}){
           <div style={{flex:1,height:6,background:"#182640",borderRadius:3,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${agreementBar}%`,background:`linear-gradient(90deg,#f97316,#ffc34d,${scoreColor})`,borderRadius:3,transition:"width .6s"}}/>
           </div>
-          <div style={{fontSize:9.5,color:"#354d72"}}>{rounds.length} round{rounds.length>1?"s":""} · {rounds.reduce((t,r)=>t+r.agents.length,0)} responses</div>
+          <div style={{fontSize:9.5,color:"#354d72"}}>{rounds.length} round{rounds.length>1?"s":""} · {rounds.reduce((t:number,r:any)=>t+r.agents.length,0)} responses</div>
         </div>
+
+        {/* 5-dimension rubric breakdown */}
+        {dims&&(
+          <>
+            <div style={{height:1,background:"#182640"}}/>
+            <div style={{padding:"10px 14px"}}>
+              <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,letterSpacing:2,color:"#354d72",textTransform:"uppercase",marginBottom:8}}>Score Breakdown</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6}}>
+                {[
+                  {key:"scientific_accuracy",label:"Scientific Accuracy",weight:"35%",color:"#00e5ff"},
+                  {key:"code_correctness",label:"Code Correctness",weight:"25%",color:"#2aff80"},
+                  {key:"experimental_feasibility",label:"Feasibility",weight:"20%",color:"#f59e0b"},
+                  {key:"novelty",label:"Novelty",weight:"10%",color:"#a78bfa"},
+                  {key:"clarity",label:"Clarity",weight:"10%",color:"#f97316"},
+                ].map(d=>{
+                  const val=(dims as any)[d.key]??0;
+                  const dimColor=val>=80?"#2aff80":val>=60?"#4ade80":val>=40?"#ffc34d":"#f97316";
+                  return(
+                    <div key={d.key} style={{background:"rgba(0,0,0,.2)",borderRadius:3,padding:"7px 8px",borderTop:`2px solid ${d.color}`}}>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:7.5,color:d.color,letterSpacing:1,marginBottom:4,lineHeight:1.3}}>{d.label}<br/><span style={{color:"#354d72"}}>{d.weight}</span></div>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:14,fontWeight:800,color:dimColor}}>{val}%</div>
+                      <div style={{height:3,background:"#182640",borderRadius:2,marginTop:4,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${val}%`,background:dimColor,borderRadius:2}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
         <div style={{height:1,background:"#182640"}}/>
-        <div style={{display:"flex",gap:16,padding:"7px 14px",fontSize:9,color:"#354d72",fontFamily:"Oxanium,sans-serif"}}>
+        <div style={{display:"flex",gap:12,padding:"7px 14px",fontSize:9,color:"#354d72",fontFamily:"Oxanium,sans-serif",flexWrap:"wrap"}}>
           <span style={{color:"#f97316"}}>0–39% wide disagreement</span>
-          <span style={{color:"#ffc34d"}}>40–59% partial alignment</span>
-          <span style={{color:"#4ade80"}}>60–79% strong consensus</span>
+          <span style={{color:"#ffc34d"}}>40–59% partial</span>
+          <span style={{color:"#4ade80"}}>60–79% strong</span>
           <span style={{color:"#2aff80"}}>80–100% full convergence</span>
         </div>
       </div>
@@ -1545,6 +2106,8 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
   const [tab,setTab]=useState("conclusion");
   const [confirmDelete,setConfirmDelete]=useState(false);
   const [generatingCode,setGeneratingCode]=useState(false);
+  const [runningCode,setRunningCode]=useState(false);
+  const [codeOutput,setCodeOutput]=useState<{stdout:string,stderr:string,images:string[],error:string|null}|null>(null);
   const ts=new Date(it.ts).toLocaleString();
   const finalScore=it.finalScore??0;
   const isOwn=it.sessionId===SESSION_ID;
@@ -1648,30 +2211,48 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
           {tab==="code"&&(
             <div style={{background:"#020617",border:"1px solid #1e293b",borderRadius:4,padding:"18px 20px",position:"relative"}}>
               <div style={{position:"absolute",top:-8,left:14,background:"#020617",padding:"0 8px",fontSize:8.5,letterSpacing:2.5,color:"#2aff80",fontFamily:"Oxanium,sans-serif"}}>STARTER CODE — PYTHON</div>
+
+              {/* Action buttons */}
               {it.code&&!generatingCode&&(
                 <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
                   <button onClick={()=>{
                     const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
-                    const encoded=encodeURIComponent(code);
-                    const nb=encodeURIComponent(JSON.stringify({nbformat:4,nbformat_minor:5,metadata:{kernelspec:{display_name:"Python 3",language:"python",name:"python3"}},cells:[{cell_type:"code",source:code,metadata:{},outputs:[],execution_count:null}]}));
-                    window.open(`https://colab.research.google.com/gist/blank?code=${encoded}`,"_blank");
+                    window.open(`https://colab.research.google.com/gist/blank?code=${encodeURIComponent(code)}`,"_blank");
                   }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(255,165,0,.4)",background:"rgba(255,165,0,.08)",color:"#fbbf24",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                    <span>▶</span> Open in Colab
+                    ▶ Open in Colab
                   </button>
                   <button onClick={()=>{
                     const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
-                    navigator.clipboard.writeText(code).then(()=>alert("Code copied! Paste into a Jupyter notebook cell."));
-                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(42,255,128,.3)",background:"rgba(42,255,128,.06)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    navigator.clipboard.writeText(code).then(()=>alert("Code copied — paste into a Jupyter cell."));
+                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(42,255,128,.3)",background:"rgba(42,255,128,.06)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer"}}>
                     📋 Copy for Jupyter
                   </button>
                   <button onClick={()=>{
                     const code=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
-                    navigator.clipboard.writeText(code).then(()=>alert("Code copied! Paste into an R Markdown cell or use reticulate::py_run_string()."));
-                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(139,92,246,.3)",background:"rgba(139,92,246,.06)",color:"#a78bfa",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    navigator.clipboard.writeText(code).then(()=>alert("Code copied — use with reticulate::py_run_string() in RStudio."));
+                  }} style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(139,92,246,.3)",background:"rgba(139,92,246,.06)",color:"#a78bfa",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:"pointer"}}>
                     📋 Copy for RStudio
+                  </button>
+                  <button
+                    disabled={runningCode}
+                    onClick={async()=>{
+                      if(runningCode) return;
+                      const rawCode=it.code.match(/```python\n([\s\S]*?)```/)?.[1]||it.code;
+                      setRunningCode(true);
+                      setCodeOutput(null);
+                      const result=await runCodeInSandbox(rawCode);
+                      setCodeOutput(result);
+                      setRunningCode(false);
+                    }}
+                    style={{padding:"5px 12px",borderRadius:3,border:"1px solid rgba(0,229,255,.4)",background:runningCode?"transparent":"rgba(0,229,255,.08)",color:runningCode?"#354d72":"#00e5ff",fontFamily:"Oxanium,sans-serif",fontSize:9.5,cursor:runningCode?"default":"pointer",display:"flex",alignItems:"center",gap:6}}>
+                    {runningCode?(
+                      <><span style={{width:8,height:8,borderRadius:"50%",border:"1.5px solid #00e5ff",borderTopColor:"transparent",animation:"spin .7s linear infinite"}}/>Running…</>
+                    ):"⚡ Run in Sandbox"}
                   </button>
                 </div>
               )}
+
+              {/* Code content */}
               {generatingCode&&(
                 <div style={{display:"flex",alignItems:"center",gap:10,color:"#2aff80",fontSize:12,padding:"20px 0",fontFamily:"Oxanium,sans-serif"}}>
                   <span style={{width:14,height:14,borderRadius:"50%",border:"2px solid #2aff80",borderTopColor:"transparent",animation:"spin .7s linear infinite",flexShrink:0}}/>Generating practical code…
@@ -1684,6 +2265,55 @@ function IterBlock({it,n,defaultOpen,onDelete,q,onUpdate,allIters}){
                   <button onClick={genCode} style={{padding:"8px 20px",borderRadius:3,border:"1px solid rgba(42,255,128,.4)",background:"rgba(42,255,128,.06)",color:"#2aff80",fontFamily:"Oxanium,sans-serif",fontSize:10,letterSpacing:1.2,textTransform:"uppercase",cursor:"pointer"}}>
                     ⚡ Generate Code Now
                   </button>
+                </div>
+              )}
+
+              {/* Sandbox output */}
+              {codeOutput&&(
+                <div style={{marginTop:16,border:"1px solid #182640",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{padding:"8px 14px",background:"#0c1a30",fontFamily:"Oxanium,sans-serif",fontSize:9,letterSpacing:2,color:codeOutput.error?"#ff5c5c":"#2aff80",display:"flex",alignItems:"center",gap:8}}>
+                    {codeOutput.error?"❌ EXECUTION ERROR":"✓ EXECUTION OUTPUT"}
+                    <button onClick={()=>setCodeOutput(null)} style={{marginLeft:"auto",background:"transparent",border:"none",color:"#354d72",cursor:"pointer",fontSize:11}}>✕</button>
+                  </div>
+
+                  {codeOutput.error&&(
+                    <div style={{padding:"12px 14px",background:"rgba(255,92,92,.05)"}}>
+                      <pre style={{color:"#fca5a5",fontSize:11,margin:0,whiteSpace:"pre-wrap"}}>{codeOutput.error}</pre>
+                    </div>
+                  )}
+
+                  {codeOutput.stdout&&(
+                    <div style={{padding:"12px 14px",borderTop:"1px solid #182640"}}>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#354d72",letterSpacing:1.5,marginBottom:6}}>STDOUT</div>
+                      <pre style={{color:"#a5f3fc",fontSize:11,margin:0,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{codeOutput.stdout}</pre>
+                    </div>
+                  )}
+
+                  {codeOutput.stderr&&(
+                    <div style={{padding:"12px 14px",borderTop:"1px solid #182640",background:"rgba(255,165,0,.03)"}}>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#fbbf24",letterSpacing:1.5,marginBottom:6}}>WARNINGS / STDERR</div>
+                      <pre style={{color:"#fde68a",fontSize:10.5,margin:0,whiteSpace:"pre-wrap",maxHeight:150,overflowY:"auto"}}>{codeOutput.stderr}</pre>
+                    </div>
+                  )}
+
+                  {codeOutput.images&&codeOutput.images.length>0&&(
+                    <div style={{padding:"12px 14px",borderTop:"1px solid #182640"}}>
+                      <div style={{fontFamily:"Oxanium,sans-serif",fontSize:8,color:"#a78bfa",letterSpacing:1.5,marginBottom:10}}>📊 GENERATED FIGURES ({codeOutput.images.length})</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                        {codeOutput.images.map((img:string,i:number)=>(
+                          <div key={i} style={{border:"1px solid #182640",borderRadius:3,overflow:"hidden"}}>
+                            <img src={img.startsWith("data:")?img:`data:image/png;base64,${img}`}
+                              alt={`Output figure ${i+1}`}
+                              style={{width:"100%",maxWidth:600,display:"block"}}
+                            />
+                            <div style={{padding:"5px 10px",background:"#0c1a30",fontSize:9,color:"#354d72",fontFamily:"Oxanium,sans-serif"}}>
+                              Figure {i+1} — right-click to save
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1789,25 +2419,21 @@ const SEED_QUESTIONS = [
 
 async function loadCommunityIndex(){
   try{
-    const r=localStorage.getItem(CK_INDEX);
-    if(r){
-      const stored=JSON.parse(r)||[];
-      const storedIds=new Set(stored.map((x:any)=>x.id));
-      const seedsToAdd=SEED_QUESTIONS.filter((s:any)=>!storedIds.has(s.id));
-      return [...stored,...seedsToAdd];
-    }
-    return [...SEED_QUESTIONS];
+    const stored=await kvGet(CK_INDEX)||[];
+    const storedIds=new Set(stored.map((x:any)=>x.id));
+    const seedsToAdd=SEED_QUESTIONS.filter((s:any)=>!storedIds.has(s.id));
+    return [...stored,...seedsToAdd];
   }catch{return [...SEED_QUESTIONS];}
 }
 async function saveCommunityIndex(list:any){
   const toSave=list.filter((x:any)=>!x.id.startsWith("seed_"));
-  try{localStorage.setItem(CK_INDEX,JSON.stringify(toSave));}catch{}
+  await kvSet(CK_INDEX,toSave);
 }
 async function loadCommunityIters(qid:any){
-  try{const r=localStorage.getItem(ck(qid));return r?JSON.parse(r):[];}catch{return[];}
+  return await kvGet(ck(qid))||[];
 }
 async function saveCommunityIters(qid:any,iters:any){
-  try{localStorage.setItem(ck(qid),JSON.stringify(iters));}catch{}
+  await kvSet(ck(qid),iters);
 }
 
 /* ═══════ COMMUNITY PAGE ═══════ */
